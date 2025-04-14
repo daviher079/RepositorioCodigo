@@ -1,0 +1,132 @@
+1º SVC (Máquina de vectores de soporte)
+    --> Ventajas
+        · Muy efectivo en espacios de alta dimensionalidad (muchas características).
+        · Funciona bien tanto en datos linealmente separables como no separables gracias al uso de kernels
+
+    --> Inconvenientes
+        · No proporciona probabilidades de clase de forma directa (aunque se puede habilitar con un costo adicional)
+
+    Cuando usarlo
+        Es un modelo robusto. Ideal para problemas con datos de tamaño pequeño a mediano y alta dimensionalidad, 
+        como clasificación de texto o imágenes.
+
+
+2º GaussianNB (Naive Bayes gaussiano)
+    --> Ventajas 
+        · Muy rápido y eficiente, incluso con grandes conjuntos de datos.
+        · Simple de implementar y requiere poca memoria.
+
+    --> Inconvenientes
+        · Puede tener un rendimiento pobre si la distribución de los datos no es gaussiana.
+        · No maneja bien características categóricas sin preprocesamiento adicional.
+
+    Cuando usarlo
+        Perfecto para problemas simples y rápidos, como clasificación de texto (eg, spam/no spam) 
+        o cuando tienes datos continuos que se aproximan a una distribución normal.
+
+
+3º Análisis discriminante lineal (LDA)    
+    --> Ventajas
+        · Bueno para problemas lineales y cuando las clases están bien separadas.
+        · Reduzca la dimensionalidad mientras preserva la separación entre clases.
+
+    --> Inconvenientes
+        · Supongamos que los datos tienen una distribución gaussiana y covarianzas similares entre clases, lo cual no siempre se cumple.
+        · Menos flexible que otros modelos como SVM con kernels.
+
+    Cuando usarlo
+        Úsalo cuando tengas datos continuos con una estructura lineal clara y quieras un modelo interpretable
+        o necesites reducir dimensionalidad antes de aplicar otro clasificador.
+
+
+4º PCA (Análisis de Componentes Principales) (Nota: No es un clasificador per se, sino una técnica de reducción de dimensionalidad)
+    --> Ventajas
+        · Reduce la dimensionalidad eliminando redundancia, lo que puede mejorar la eficiencia de otros clasificadores.
+
+    --> Inconvenientes
+        · Puede perder información importante si se descartan componentes con variación baja.
+        · Sensible a la escala de los datos (requiere estandarización previa).
+
+    Cuando usarlo
+        No se utiliza como clasificador directo, sino como preprocesamiento para reducir dimensiones antes de aplicar otro clasificador, 
+        especialmente si tiene muchas características correlacionadas.
+
+
+5º Clasificador aleatorio de bosques
+    --> Ventajas
+        · Muy versátil: funciona bien con datos lineales y no lineales, categóricos o continuos.
+
+    --> Inconvenientes
+        · Es un clasificador mas lento que otros modelos simples como GaussianNB o DecisionTree.
+        · Requiere ajustar hiperparámetros como el número de árboles o la profundidad máxima.
+
+    Cuando usarlo
+        Ideal para problemas complejos con datos mixtos y cuando no sabes mucho sobre la estructura de los datos.
+
+
+6º Clasificador de árboles de decisión (RandomForestClassifier)
+    --> Ventajas
+        · Fácil de entender e interpretar.
+        · Maneja bien datos categóricos y continuo sin mucho preprocesamiento.
+        · Rápido de entrenar y predecir en conjuntos de datos pequeños.
+    
+    --> Inconvenientes
+        · Sensible a pequeñas variaciones en los datos (inestabilidad).
+        · No captura relaciones complejas tan bien como modelos ensamblados o redes neuronales.
+
+    Cuando usarlo 
+        Se usa en problemas simples o cuando quieras un modelo interpretable y no te importe podarlo o 
+        combinarlo con técnicas como RandomForest para mejorar su rendimiento.
+
+
+7º MLPClassifier (Red neuronal)
+    --> Ventajas    
+        · Capaz de modelar relaciones no lineales complejas gracias a su estructura de red neuronal.
+        · Flexible: puede aprender patrones complicados con suficientes capas y neuronas.
+        · Se adapta bien a problemas de clasificación binaria o multiclase.
+    
+    --> Inconvenientes
+        · Requiere mucho tiempo de entrenamiento y ajuste de hiperparámetros.
+        · Sensible a la escala de los datos
+    
+    Cuando usarlo
+        Se usa cuando haya datos complejos y no lineales y se pueda invertir tiempo en optimizarlo
+
+
+8º KNeighborsClassifier (K ​​vecinos más cercanos)
+    --> Ventajas
+        · Simple e intuitivo: clasifica según la cercanía a otros puntos.
+        · No requiere entrenamiento explícito.
+    
+    --> Inconvenientes
+        · Muy lento en predicción con conjuntos de datos grandes
+        · Requiere elegir un buen valor de "k" y una métrica de distancia adecuada.
+
+    Cuando usarlo
+        Úsalo en conjuntos de datos pequeños o medianos con patrones locales claros
+
+
+Si se busca rapidez y simplicidad: GaussianNB o DecisionTreeClassifier.
+Si se tiene datos complejos y no lineales: RandomForestClassifier o MLPClassifier.
+Si se trabaja con alta dimensionalidad: SVM o PCA (como preprocesamiento).
+Si se necesita un modelo robusto y general: RandomForestClassifier suele ser una apuesta segura.
+Si se prioriza interpretabilidad: DecisionTreeClassifier o LinearDiscriminantAnalysis.
+
+
+
+que es una distribución gaussiana en modelos de clasificación de inteligencia artificial  
+
+    ¿Cómo saber si tus datos son gaussianos?
+    Puedes verificarlo con:
+        · Histogramas: Si dibujas un histograma de tus datos y se parece a una campana, podría ser gaussiano.
+        · Pruebas estadísticas: Como la prueba de Shapiro-Wilk o Kolmogorov-Smirnov, que evalúan si los datos se ajustan a una distribución normal.
+        · Visualización: Gráficos QQ (quantile-quantile) comparan tus datos con una distribución normal teórica.
+
+
+
+diferencia entre datos complejos y no complejos y lineales y no lineales
+
+Datos simples y lineales: GaussianNB, LinearDiscriminantAnalysis, o SVM con kernel lineal son suficientes.
+Datos Simples y No Lineales: KNeighborsClassifier o DecisionTreeClassifier pueden funcionar bien.
+Datos Complejos y Lineales: SVM (lineal) o LDA con preprocesamiento como PCA.
+Datos Complejos y No Lineales: RandomForestClassifier, MLPClassifier o SVM con kernel RBF son ideales.
