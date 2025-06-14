@@ -9,6 +9,6 @@ clf = PCA()
 # La implementación correcta sería simplemente clf.fit(X). 
 # Pasar y no afecta el resultado en este caso, ya que PCA lo ignora.
 
-clf.fit(X, y) 
+clf.fit(X) 
 print(clf.explained_variance_ratio_) 
 print(clf.singular_values_)
