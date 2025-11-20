@@ -1,9 +1,8 @@
-#pip install statsbombpy
-#from statsbombapi import sb
+from statsbombpy import sb
 
 sb.competitions()
 
-partidos = sb.matches(competition_id=43, season_id=13)
+partidos = sb.matches(competition_id=43, season_id=3)
 
 eventos = sb.events(match_id=8657)
 
