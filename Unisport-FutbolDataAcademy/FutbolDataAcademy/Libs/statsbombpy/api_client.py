@@ -2,12 +2,13 @@ import warnings
 from tempfile import mkdtemp
 
 import requests as req
-from requests_cache import install_cache
+#from requests_cache import install_cache
 
 import statsbombpy.entities as ents
 from statsbombpy.config import CACHED_CALLS_SECS, HOSTNAME, VERSIONS
 
-install_cache(mkdtemp(), backend="sqlite", expire_after=CACHED_CALLS_SECS)
+# Deshabilitamos el cache porque requests_cache no está disponible en iOS/Juno
+# install_cache(mkdtemp(), backend="sqlite", expire_after=CACHED_CALLS_SECS)
 
 
 class NoAuthWarning(UserWarning):

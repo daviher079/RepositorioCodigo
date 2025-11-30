@@ -1,3 +1,11 @@
+import sys
+sys.path.append("../Libs")
+
+import warnings
+from statsbombpy.api_client import NoAuthWarning  # importamos la clase de warning
+
+warnings.filterwarnings("ignore", category=NoAuthWarning)
+
 from statsbombpy import sb
 
 sb.competitions()
