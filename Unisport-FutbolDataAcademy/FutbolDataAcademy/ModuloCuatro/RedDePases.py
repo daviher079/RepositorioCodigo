@@ -82,7 +82,29 @@ for i, nombre_jugador in enumerate(pases_datos_partido["player_name"].unique()):
 pases_datos_partido["pair_key"] = pases_datos_partido.apply(
     lambda x: "_".join(sorted([x["player_name"], x["pass_recipient_name"]])),  
     axis = 1)
-lines_df = pases_datos_partido.groupby(["pair_key"]).x.count().reset_index()
-lines_df.rename({'x':'pass_count'}, axis='columns', inplace=True)
 
-lines_df = lines_df[lines_df]
+# Agrupamos todos los pases por pareja de jugadores usando 'pair_key'.
+# En cada grupo contamos cuántos pases hay (cada fila es un pase),
+# usando count() sobre la columna 'x' porque cada pase tiene una coordenada 'x'.
+# El resultado de groupby es una Serie, y con reset_index() lo convertimos
+# en un DataFrame normal para poder manipularlo más adelante.
+lines_df = pases_datos_partido.groupby(["pair_key"]).x.count().reset_index()
+
+# renombramos la columna de nombre 'x' por 'pass_count', con el metodo rename, 
+#a rename se le pueden añadir varios parametros, entre ellos le decimos que lo que 
+#queremos es hacer el cambio en las columnas y no en un registro, para eso axis='columns'
+#axis='index' cambia registros, inplace=True le estamos diciendo que haga el cambio en el DataFrame
+# original y que no nos devuelva una copia
+lines_df.rename({'x':'pass_count'}, axis='columns', inplace=True)
+#Filtra el DataFrame lines_df para quedarse solo con las parejas de jugadores 
+#que se pasaron el balón MÁS DE 2 veces.
+lines_df = lines_df[lines_df['pass_count']>2]
+
+
+
+pitch = Pitch(line_color='black')
+
+fig, ax = pitch.grid(grid_heid = 0.9, title_heid = 0.06, axis = False, endnote_height = 0.04, title_space = 0, 
+endnote_space = 0)
+
+pitch.scatter(scatter_df.x, scatter_df.y, s = scatter_df.marker_size)
