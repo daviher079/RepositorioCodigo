@@ -101,10 +101,105 @@ lines_df.rename({'x':'pass_count'}, axis='columns', inplace=True)
 lines_df = lines_df[lines_df['pass_count']>2]
 
 
-
+#crea el objeto con las propiedades del campo
 pitch = Pitch(line_color='black')
 
-fig, ax = pitch.grid(grid_heid = 0.9, title_heid = 0.06, axis = False, endnote_height = 0.04, title_space = 0, 
-endnote_space = 0)
+#Dibuja el campo y da una figura (fig) y una cuadrícula de ejes (ax)
+#fig → la figura completa de Matplotlib
+#ax → un diccionario con ejes organizados en una “rejilla”
+fig, ax = pitch.grid(grid_height = 0.9, title_height = 0.06, axis = False, endnote_height = 0.04, title_space = 0, endnote_space = 0)
 
-pitch.scatter(scatter_df.x, scatter_df.y, s = scatter_df.marker_size)
+#El metodo scatter del objeto Pitch de mplsoccer dibuja puntos en el campo uno por jugador
+#Se dibuja la posción media de cada jugador dentro del campo
+pitch.scatter(
+    scatter_df.x, #coordenada X de cada jugador
+    scatter_df.y, #coordenada Y de cada jugador
+    s = scatter_df.tamaño_circulo, #Ajusta el tamaño del punto.
+    color = 'red', #color del punto
+    edgecolors = 'grey', #El borde del punto
+    linewidth = 1, #Grosor del borde
+    alpha = 1, #Opacidad del punto
+    ax = ax["pitch"], #eje del gráfico se debe dibujar, Dibuja los puntos en el eje llamado pitch 
+    zorder = 3 #Qu elementos se dibujan por encima de otros (0–1) → al fondo (3–10) → delante
+    )
+#iterrows() metodo de pandas para recorrer linea a linea un DataFrame
+for i, row in scatter_df.iterrows():
+    #es una función de mplsoccer, no de matplotlib 
+    #permite dibujar texto directamente sobre el campo de fútbol
+    pitch.annotate(
+        row.player_name, #nombre del jugador
+        xy = (row.x, row.y), # Dibuja en las coordenadas donde está el jugador
+        c = 'black', #Color texto
+        va = 'center', #Alineación vertical
+        ha = 'center', #Alineación horizontal
+        weight = "bold", #Peso de la tipografía
+        size=16, #Tamaño de la tipografia
+        ax = ax["pitch"], #En que eje se dibuja
+        zorder = 4 #Superposicion de donde aparece cada nombre
+    )
+#añade un título general
+fig.suptitle("Red de pases - Costa de Marfil", fontsize = 30)
+
+
+#Generar las lineas de pases
+pitch = Pitch(line_color = 'grey')
+
+fig, ax = pitch.grid(
+    grid_height = 0.9,
+    title_height = 0.06,
+    axis = False,
+    endnote_height = 0.04, 
+    title_space = 0,
+    endnote_space = 0)
+
+pitch.scatter(
+    scatter_df.x, 
+    scatter_df.y, 
+    s = scatter_df.tamaño_circulo, 
+    color = 'red', 
+    edgecolors = 'grey',
+    linewidth = 1, 
+    alpha = 1, 
+    ax = ax["pitch"], 
+    zorder = 3 
+    )
+
+for i, row in scatter_df.iterrows():
+    #es una función de mplsoccer, no de matplotlib 
+    #permite dibujar texto directamente sobre el campo de fútbol
+    pitch.annotate(
+        row.player_name, 
+        xy = (row.x, row.y), 
+        c = 'black', 
+        va = 'center', 
+        ha = 'center', 
+        weight = "bold", 
+        size=16, 
+        ax = ax["pitch"],
+        zorder = 4 
+    )
+
+for i, row in lines_df.iterrows():
+    player1 = row["pair_key"].split("_")[0]
+    player2 = row["pair_key"].split("_")[1]
+
+    player1_x = scatter_df.loc[scatter_df["player_name"]==player1]['x'].iloc[0]
+    player1_y = scatter_df.loc[scatter_df["player_name"]==player1]['y'].iloc[0]
+    player2_x = scatter_df.loc[scatter_df["player_name"]==player2]['x'].iloc[0]
+    player2_y = scatter_df.loc[scatter_df["player_name"]==player2]['y'].iloc[0]
+    num_passes = row["pass_count"]
+
+    line_width = (num_passes / lines_df['pass_count'].max() * 10)
+    pitch.lines(player1_x, 
+                player1_y, 
+                player2_x, 
+                player2_y, 
+                alpha = 1, 
+                lw = line_width, 
+                zorder = 2, 
+                color="red", 
+                ax= ax["pitch"])
+    
+fig.suptitle("Red de pases Costa de Marfil vs Nigeria", fontsize = 30)
+
+plt.show()
