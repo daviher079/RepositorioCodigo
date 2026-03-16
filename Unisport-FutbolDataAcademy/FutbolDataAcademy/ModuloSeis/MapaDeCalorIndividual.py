@@ -24,7 +24,7 @@ ax.patch.set_facecolor('#22312b')
 pitch = Pitch(pitch_type='statsbomb', pitch_color='#22312b', line_color='#c7d5cc')
 
 pitch.draw(ax=ax)
-plt.gca().invert_yaxis
+plt.gca().invert_yaxis()
 
 kde = sns.kdeplot(
     x=df['x'],
