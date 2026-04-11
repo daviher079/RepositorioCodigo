@@ -34,7 +34,8 @@ pases_datos_partido = datos_partido.loc[
     mascara_pases_cote, 
     ['x', 'y', 'end_x', 'end_y', "player_name", "pass_recipient_name"]
 ]
-#Mostrar solo los apellidos de los jugadores
+
+#Esto recorre cada nombre de jugador de la columna y se queda solo con el último elemento después de dividir por espacios. 
 pases_datos_partido["player_name"] = pases_datos_partido["player_name"].apply(lambda x: str(x).split()[-1])
 pases_datos_partido["pass_recipient_name"] = pases_datos_partido["pass_recipient_name"].apply(lambda x: str(x).split()[-1])
 
@@ -73,7 +74,6 @@ for i, nombre_jugador in enumerate(pases_datos_partido["player_name"].unique()):
     scatter_df.at[i, "numero_de_pases"] = pases_datos_partido.loc[pases_datos_partido["player_name"] == nombre_jugador].count().iloc[0]
 
 #Ajustamos el tamaño del circulo para que sea más grande cuando más pases da ese jugador
-#MEJORA: movido fuera del bucle, solo necesita calcularse una vez al terminar de rellenar scatter_df
 scatter_df["tamaño_circulo"] = (scatter_df["numero_de_pases"] / scatter_df["numero_de_pases"].max() * 1500)
 
 #Contar los pases entre un jugador y otro para aumentar el grosor de la linea según los pases realizados

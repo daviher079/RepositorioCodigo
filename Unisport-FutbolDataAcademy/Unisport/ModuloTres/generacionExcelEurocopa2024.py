@@ -69,7 +69,7 @@ estadisticas_jugadores = df_eventos.groupby(["player"]).agg(
 
     # Pases
     pases_totales=("type", lambda x: (x == "Pass").sum()),
-    pases_completados=("pass_outcome", lambda x: x.isna().sum()),
+    pases_fallados=("pass_outcome", lambda x: x.notna().sum()),
     pases_clave=("pass_shot_assist", lambda x: x.sum()),
     asistencias=("pass_goal_assist", lambda x: x.sum()),
     pases_largos=("pass_switch", lambda x: x.sum()),

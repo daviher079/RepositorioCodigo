@@ -61,6 +61,28 @@ df_sub23 = df_sub23[columnas_principales + resto_columnas]
 # Mostrar por pantalla ordenado por edad
 print(df_sub23[["player", "pais", "edad", "posicion", "posicion_clasificada"]].sort_values("edad"))
 
+# Correcciones manuales de posicion_clasificada
+correcciones_posicion = {
+    'Bukayo Saka': 'Delantero',
+    'Dan Ndoye': 'Delantero',
+    'Mohamed Zeki Amdouni': 'Delantero',
+    'Heorhii Tsitaishvili': 'Centrocampista',
+    'Joshua Zirkzee': 'Delantero',
+    'Semih Kılıçsoy': 'Delantero',
+    'Gonçalo Matias Ramos': 'Delantero',
+    'Victor Bernth Kristansen': 'Centrocampista',
+    'Lukáš Červ': 'Centrocampista',
+    'Maksym Talovierov': 'Defensa',
+    'Pavel Šulc': 'Centrocampista',
+    'Zeno Debast': 'Defensa',
+}
+
+for jugador, posicion in correcciones_posicion.items():
+    df_sub23.loc[df["player"] == jugador, "posicion_clasificada"] = posicion
+
+print(df_sub23["posicion_clasificada"].value_counts())
+print("NaN restantes:", df_sub23["posicion_clasificada"].isna().sum())
+
 # Guardar Excel
 BASE_SALIDA = os.path.join(os.path.dirname(__file__), "eurocopa_sub23.xlsx")
 df_sub23.to_excel(BASE_SALIDA, index=False)

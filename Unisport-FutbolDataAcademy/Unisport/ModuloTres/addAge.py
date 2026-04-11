@@ -3,6 +3,8 @@ import requests
 import os
 from thefuzz import process
 from datetime import date
+from bs4 import BeautifulSoup
+import time
 
 api_key = "738f90a55f0644a4a63b6337dc1eae81"
 headers = {"X-Auth-Token": api_key}

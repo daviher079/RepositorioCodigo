@@ -40,6 +40,11 @@ df_resumen["valor_num"] = pd.to_numeric(df_resumen["valor"], errors="coerce")
 
 duelos = df_resumen[df_resumen["estadistica"].isin(["Duelos_Ganados", "Duelos_perdidos"])]
 
+
+#El problema es que los duelos ganados y perdidos están en filas separadas. 
+#Para calcular el porcentaje necesitas tenerlos en la misma fila. 
+#Eso es exactamente lo que hace pivot_table, gira la tabla para que cada 
+#valor único de una columna se convierta en una columna nueva.
 pivot = duelos.pivot_table(
     index=["jugador", "rival", "posicion", "tipo"],
     columns="estadistica",
