@@ -76,20 +76,20 @@ scale = 0.85
 cx, cy = 60, 40  # centro StatsBomb
 
 
-# KDE suave sin pixeles
-kde = sns.kdeplot(
-    x = cx + (danger_passes.x - cx) * scale,
-    y = cy + (danger_passes.y - cy) * scale,
+danger_passes = danger_passes[danger_passes["x"] > 60]
+
+pitch.kdeplot(
+    danger_passes.x,
+    danger_passes.y,
+    ax=ax['pitch'],
     fill=True,
     cmap='turbo',
-    bw_adjust=0.7,    # suavidad perfecta
-    thresh=0.05,      
+    bw_adjust=1.1,
+    thresh=0.1,
     alpha=0.9,
-    levels = 100,
-    linewidths=0,       # MUCHOS niveles para suavidad absoluta
-    ax=ax['pitch']
+    levels=150,
+    linewidths=0
 )
-
 pitch.draw(ax=ax['pitch'])
 
 plt.show()
