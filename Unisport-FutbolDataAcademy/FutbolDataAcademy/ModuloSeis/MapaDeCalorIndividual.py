@@ -33,7 +33,7 @@ kde = sns.kdeplot(
     thresh=0,            # parecido a shade_lowest=False
     alpha=0.5,
     levels=10,           # antes n_levels
-    cmap='magma',
+    cmap='turbo',
     ax=ax                # MUY IMPORTANTE
 )
 
@@ -47,5 +47,5 @@ for x in range(len(df['x'])):
 
 plt.xlim(0,120)
 plt.ylim(0,80)
-plt.title('Messi Pass Map vs Real Betis', color='#22312b',size=20)
+plt.title('Messi Pass Map vs Real Betis', color='white', size=20)
 plt.show()
