@@ -2,6 +2,16 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Master Brain — Consulta obligatoria
+
+Antes de responder cualquier pregunta sobre el proyecto, decisiones anteriores o preferencias del usuario, **debes consultar el notebook Master Brain de NotebookLM** usando el siguiente comando:
+
+```
+/notebooklm ask --notebook-id 4c8a5e68-6af7-4f5e-8388-bd77ae54a18c "<tu pregunta aquí>"
+```
+
+Este notebook contiene el historial de decisiones, preferencias y contexto acumulado del proyecto. Úsalo como primera fuente de verdad antes de asumir o responder desde cero.
+
 ## Repository Overview
 
 This is a learning portfolio repository containing three distinct project areas:
