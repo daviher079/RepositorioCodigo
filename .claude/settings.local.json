@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(ls -d \"/Users/davidvh10/Desktop/Mis Cosas/RepositorioCodigo\"/*/)"
+    ]
+  }
+}
