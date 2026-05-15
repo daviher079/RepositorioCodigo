@@ -4,7 +4,7 @@ Scripts y pipelines de análisis de datos aplicados al fútbol. Desarrollados du
 
 ## Tecnologías
 
-Python · pandas · matplotlib · mplsoccer · statsbombpy · scikit-learn · Playwright · NumPy · SciPy
+Python · Power BI · pandas · matplotlib · mplsoccer · statsbombpy · scikit-learn · Playwright · NumPy · SciPy
 
 ---
 
@@ -45,17 +45,45 @@ Python · pandas · matplotlib · mplsoccer · statsbombpy · scikit-learn · Pl
 
 4 scripts de análisis de rendimiento individual: percentiles por posición, comparativa entre jugadores, similitud estadística y ranking por métricas clave.
 
+| |
+|---|
+| ![Radar de percentiles](assets/scouting_pizza_radar.png) |
+
+---
+
 ### Rendimiento de Equipos
 
 3 scripts de análisis comparativo entre equipos: percentil defensivo, comparativa goleadora y tiros a puerta.
 
+| |
+|---|
+| ![Tiros vs tiros a puerta Premier](assets/rendimiento_tiros_premier.png) |
+
+---
+
 ### Pipeline Jugadores — Módulo 2 Unisport
 
-Pipeline completo de datos de jugadores: limpieza, exploración, contextualización por minutos jugados y modelo ML de predicción de participación.
+Pipeline completo de datos de jugadores: limpieza, exploración, contextualización por minutos jugados y modelo ML de predicción de participación. Dashboard interactivo en Power BI.
+
+| | |
+|---|---|
+| [![Dashboard jugadores 1](assets/powerbi_jugadores_1.png)](https://app.powerbi.com/view?r=eyJrIjoiY2MzYjQyNDUtZDQ0Zi00YmRhLTllODctOWQwZDU4MjFiM2RjIiwidCI6IjMxNTI1NWE3LTk2NDMtNDYyYy04MGRkLTRjODk1NTgwZDg0NSIsImMiOjh9) | [![Dashboard jugadores 2](assets/powerbi_jugadores_2.png)](https://app.powerbi.com/view?r=eyJrIjoiY2MzYjQyNDUtZDQ0Zi00YmRhLTllODctOWQwZDU4MjFiM2RjIiwidCI6IjMxNTI1NWE3LTk2NDMtNDYyYy04MGRkLTRjODk1NTgwZDg0NSIsImMiOjh9) |
+
+> Haz clic en las imágenes para abrir el dashboard interactivo
+
+---
 
 ### Pipeline Defensas Sub-23 — Eurocopa 2024
 
-Pipeline con datos open-data de StatsBomb: generación de métricas, filtro sub-23, enriquecimiento con edad via API y análisis estadístico descriptivo.
+Pipeline con datos open-data de StatsBomb: generación de métricas, filtro sub-23, enriquecimiento con edad via API y análisis estadístico descriptivo. Dashboard interactivo en Power BI.
+
+| | |
+|---|---|
+| [![Dashboard defensas 1](assets/powerbi_defensas_1.png)](https://app.powerbi.com/view?r=eyJrIjoiZDMyZDc1NWItYjkxMC00OTViLWFlYjYtZDk1YThlNGY2MDkxIiwidCI6IjMxNTI1NWE3LTk2NDMtNDYyYy04MGRkLTRjODk1NTgwZDg0NSIsImMiOjh9) | [![Dashboard defensas 2](assets/powerbi_defensas_2.png)](https://app.powerbi.com/view?r=eyJrIjoiZDMyZDc1NWItYjkxMC00OTViLWFlYjYtZDk1YThlNGY2MDkxIiwidCI6IjMxNTI1NWE3LTk2NDMtNDYyYy04MGRkLTRjODk1NTgwZDg0NSIsImMiOjh9) |
+
+> Haz clic en las imágenes para abrir el dashboard interactivo
+
+---
 
 ### Módulo 4 Unisport
 
@@ -65,4 +93,4 @@ Scripts del caso práctico del Módulo 4: dashboard deportivo, segmentación de 
 
 ## Fuentes de datos
 
-StatsBomb Open Data · WhoScored · Understat · football-data.org API
+StatsBomb Open Data · WhoScored · Understat · FBref · football-data.org API
