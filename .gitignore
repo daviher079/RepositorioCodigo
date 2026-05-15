@@ -7,9 +7,10 @@ venv/
 __pycache__/
 *.pyc
 
-# Datos y outputs generados
+# Datos y outputs generados (excepto assets del README)
 *.csv
 *.png
+!assets/*.png
 
 # macOS
 .DS_Store
