@@ -41,26 +41,6 @@ Python · Power BI · pandas · matplotlib · mplsoccer · statsbombpy · scikit
 
 ---
 
-### Scouting de Jugadores
-
-4 scripts de análisis de rendimiento individual: percentiles por posición, comparativa entre jugadores, similitud estadística y ranking por métricas clave.
-
-| |
-|---|
-| ![Radar de percentiles](assets/scouting_pizza_radar.png) |
-
----
-
-### Rendimiento de Equipos
-
-3 scripts de análisis comparativo entre equipos: percentil defensivo, comparativa goleadora y tiros a puerta.
-
-| |
-|---|
-| ![Tiros vs tiros a puerta Premier](assets/rendimiento_tiros_premier.png) |
-
----
-
 ### Pipeline Jugadores — Módulo 2 Unisport
 
 Pipeline completo de datos de jugadores: limpieza, exploración, contextualización por minutos jugados y modelo ML de predicción de participación. Dashboard interactivo en Power BI.
