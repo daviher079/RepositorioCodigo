@@ -1,2 +1,18 @@
+# Claude
 .claude/
+CLAUDE.md
+
+# Python
+venv/
+__pycache__/
+*.pyc
+
+# Datos y outputs generados
+*.csv
+*.png
+
+# macOS
+.DS_Store
+
+# Patrón existente
 **/Match/
