@@ -41,7 +41,7 @@ Python · Power BI · pandas · matplotlib · mplsoccer · statsbombpy · scikit
 
 ---
 
-### Pipeline Jugadores — Módulo 2 Unisport
+### Informe Alta Participación Real Betis
 
 Pipeline completo de datos de jugadores: limpieza, exploración, contextualización por minutos jugados y modelo ML de predicción de participación. Dashboard interactivo en Power BI.
 
@@ -49,11 +49,11 @@ Pipeline completo de datos de jugadores: limpieza, exploración, contextualizaci
 |---|---|
 | [![Dashboard jugadores 1](assets/powerbi_jugadores_1.png)](https://app.powerbi.com/view?r=eyJrIjoiY2MzYjQyNDUtZDQ0Zi00YmRhLTllODctOWQwZDU4MjFiM2RjIiwidCI6IjMxNTI1NWE3LTk2NDMtNDYyYy04MGRkLTRjODk1NTgwZDg0NSIsImMiOjh9) | [![Dashboard jugadores 2](assets/powerbi_jugadores_2.png)](https://app.powerbi.com/view?r=eyJrIjoiY2MzYjQyNDUtZDQ0Zi00YmRhLTllODctOWQwZDU4MjFiM2RjIiwidCI6IjMxNTI1NWE3LTk2NDMtNDYyYy04MGRkLTRjODk1NTgwZDg0NSIsImMiOjh9) |
 
-> Haz clic en las imágenes para abrir el dashboard interactivo
+> 🔗 [Ver dashboard interactivo](https://app.powerbi.com/view?r=eyJrIjoiY2MzYjQyNDUtZDQ0Zi00YmRhLTllODctOWQwZDU4MjFiM2RjIiwidCI6IjMxNTI1NWE3LTk2NDMtNDYyYy04MGRkLTRjODk1NTgwZDg0NSIsImMiOjh9)
 
 ---
 
-### Pipeline Defensas Sub-23 — Eurocopa 2024
+### Informe Defensas Sub-23 Eurocopa 2024
 
 Pipeline con datos open-data de StatsBomb: generación de métricas, filtro sub-23, enriquecimiento con edad via API y análisis estadístico descriptivo. Dashboard interactivo en Power BI.
 
@@ -61,7 +61,7 @@ Pipeline con datos open-data de StatsBomb: generación de métricas, filtro sub-
 |---|---|
 | [![Dashboard defensas 1](assets/powerbi_defensas_1.png)](https://app.powerbi.com/view?r=eyJrIjoiZDMyZDc1NWItYjkxMC00OTViLWFlYjYtZDk1YThlNGY2MDkxIiwidCI6IjMxNTI1NWE3LTk2NDMtNDYyYy04MGRkLTRjODk1NTgwZDg0NSIsImMiOjh9) | [![Dashboard defensas 2](assets/powerbi_defensas_2.png)](https://app.powerbi.com/view?r=eyJrIjoiZDMyZDc1NWItYjkxMC00OTViLWFlYjYtZDk1YThlNGY2MDkxIiwidCI6IjMxNTI1NWE3LTk2NDMtNDYyYy04MGRkLTRjODk1NTgwZDg0NSIsImMiOjh9) |
 
-> Haz clic en las imágenes para abrir el dashboard interactivo
+> 🔗 [Ver dashboard interactivo](https://app.powerbi.com/view?r=eyJrIjoiZDMyZDc1NWItYjkxMC00OTViLWFlYjYtZDk1YThlNGY2MDkxIiwidCI6IjMxNTI1NWE3LTk2NDMtNDYyYy04MGRkLTRjODk1NTgwZDg0NSIsImMiOjh9)
 
 ---
 
