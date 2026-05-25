@@ -69,7 +69,10 @@ Pipeline con datos open-data de StatsBomb: generación de métricas, filtro sub-
 
 Pipeline completo de scouting de extremos para Segunda División española: extracción de métricas vía Sofascore API, 5 scripts de limpieza, filtrado, contextualización y modelado (regresión logística, 68% accuracy), y dashboard Streamlit interactivo con radar bicolor, comparativa de jugadores y generador de informes. Desplegado en producción con Docker en un VPS.
 
-![Pizza radar](assets/scouting_pizza_radar.png)
+| | |
+|---|---|
+| ![Resumen de mercado](assets/scouting_tab1_resumen.png) | ![Análisis individual](assets/scouting_tab2_analisis.png) |
+| ![Comparativa de jugadores](assets/scouting_tab3_comparativa.png) | |
 
 > 🔗 <a href="https://scouting.davidvh.com" target="_blank">Ver dashboard en vivo</a>
 
