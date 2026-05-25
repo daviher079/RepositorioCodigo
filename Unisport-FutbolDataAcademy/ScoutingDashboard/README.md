@@ -106,6 +106,7 @@ ScoutingDashboard/
 │   ├── contextualizacion_y_frontera.py
 │   ├── modelado_de_datos.py
 │   └── exploracion_inicial.py
+├── get_dataset.py                           # Extracción vía Sofascore API
 ├── dataset_extremos_filtrado_modelado.csv   # Datos del dashboard (109 extremos)
 ├── dataset_extremos_contextualizados.csv    # Dataset de referencia para percentiles
 ├── .streamlit/config.toml                   # Tema visual
