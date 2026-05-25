@@ -8,6 +8,7 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 import random
 
+
 # Configuración de la página
 st.set_page_config(
     page_title="Dashboard de Análisis Deportivo con IA",

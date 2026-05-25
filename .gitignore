@@ -1,6 +1,7 @@
 # Claude
 .claude/
 CLAUDE.md
+.claude-flow/
 
 # Python
 venv/
@@ -9,6 +10,7 @@ __pycache__/
 
 # Datos y outputs generados (excepto assets del README)
 *.csv
+!Unisport-FutbolDataAcademy/ScoutingDashboard/*.csv
 *.png
 !assets/*.png
 

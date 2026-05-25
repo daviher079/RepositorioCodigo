@@ -1,0 +1,7 @@
+streamlit==1.57.0
+pandas==2.3.3
+numpy==2.3.5
+plotly==6.7.0
+matplotlib==3.10.7
+mplsoccer==1.6.1
+scipy==1.16.3
