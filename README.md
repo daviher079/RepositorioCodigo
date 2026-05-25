@@ -4,7 +4,7 @@ Scripts y pipelines de análisis de datos aplicados al fútbol. Desarrollados du
 
 ## Tecnologías
 
-Python · Power BI · pandas · matplotlib · mplsoccer · statsbombpy · scikit-learn · Playwright · NumPy · SciPy
+Python · Streamlit · Docker · Power BI · pandas · matplotlib · mplsoccer · statsbombpy · scikit-learn · Playwright · NumPy · SciPy
 
 ---
 
@@ -62,6 +62,18 @@ Pipeline con datos open-data de StatsBomb: generación de métricas, filtro sub-
 | [![Dashboard defensas 1](assets/powerbi_defensas_1.png)](https://app.powerbi.com/view?r=eyJrIjoiZDMyZDc1NWItYjkxMC00OTViLWFlYjYtZDk1YThlNGY2MDkxIiwidCI6IjMxNTI1NWE3LTk2NDMtNDYyYy04MGRkLTRjODk1NTgwZDg0NSIsImMiOjh9) | [![Dashboard defensas 2](assets/powerbi_defensas_2.png)](https://app.powerbi.com/view?r=eyJrIjoiZDMyZDc1NWItYjkxMC00OTViLWFlYjYtZDk1YThlNGY2MDkxIiwidCI6IjMxNTI1NWE3LTk2NDMtNDYyYy04MGRkLTRjODk1NTgwZDg0NSIsImMiOjh9) |
 
 > 🔗 <a href="https://app.powerbi.com/view?r=eyJrIjoiZDMyZDc1NWItYjkxMC00OTViLWFlYjYtZDk1YThlNGY2MDkxIiwidCI6IjMxNTI1NWE3LTk2NDMtNDYyYy04MGRkLTRjODk1NTgwZDg0NSIsImMiOjh9" target="_blank">Ver informe completo</a>
+
+---
+
+### Scouting Dashboard Segunda División
+
+Pipeline completo de scouting de extremos para Segunda División española: extracción de métricas vía Sofascore API, 5 scripts de limpieza, filtrado, contextualización y modelado (regresión logística, 68% accuracy), y dashboard Streamlit interactivo con radar bicolor, comparativa de jugadores y generador de informes. Desplegado en producción con Docker en un VPS.
+
+| | |
+|---|---|
+| ![Pizza radar](assets/scouting_pizza_radar.png) | |
+
+> 🔗 <a href="https://scouting.davidvh.com" target="_blank">Ver dashboard en vivo</a>
 
 ---
 
