@@ -78,12 +78,6 @@ Pipeline completo de scouting de extremos para Segunda División española: extr
 
 ---
 
-### Módulo 4 Unisport
-
-Scripts del caso práctico del Módulo 4: dashboard deportivo, segmentación de fans, análisis de sentimiento y modelo táctico.
-
----
-
 ## Fuentes de datos
 
 StatsBomb Open Data · WhoScored · Sofascore API · Understat · FBref · football-data.org API
