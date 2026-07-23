@@ -1,0 +1,10 @@
+# Graphify escribe el grafo aquí en cada reconstrucción.
+# Si Claude Code lo ve, cada rebuild invalida la caché de contexto y fuerza
+# una re-subida completa del proyecto en el siguiente turno (aviso del README
+# de Graphify). El grafo se consulta con los comandos de graphify, no leyéndolo.
+graphify-out/
+graph.json
+
+# Entorno virtual: nunca hace falta leerlo.
+venv/
+__pycache__/
