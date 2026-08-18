@@ -67,12 +67,12 @@ Pipeline con datos open-data de StatsBomb: generación de métricas, filtro sub-
 
 ### Scouting Dashboard Segunda División
 
-Pipeline completo de scouting de extremos para Segunda División española: extracción de métricas vía Sofascore API, 5 scripts de limpieza, filtrado, contextualización y modelado (regresión logística, 68% accuracy), y dashboard Streamlit interactivo con radar bicolor, comparativa de jugadores y generador de informes. Desplegado en producción con Docker en un VPS.
+Análisis de la posición de extremo en Segunda División española: extracción de métricas vía Sofascore API y pipeline de tres scripts (limpieza, contextualización y filtrado por muestra, clasificación por perfiles). Cada extremo recibe tres notas de 0 a 100 —regateador, finalizador y creador— construidas como índices de percentiles con pesos declarados que suman 100, más un sello de seguridad en el pase. Dashboard Streamlit con radares de seis ejes por perfil, comparativa entre jugadores y explicación en pantalla de cómo se calcula cada nota. Desplegado en producción con Docker en un VPS.
 
 | | |
 |---|---|
-| ![Resumen de mercado](assets/scouting_tab1_resumen.png) | ![Análisis individual](assets/scouting_tab2_analisis.png) |
-| ![Comparativa de jugadores](assets/scouting_tab3_comparativa.png) | |
+| ![Resumen general por perfil](assets/scouting_tab1_resumen.png) | ![Análisis individual: radar por perfil, nota y sello](assets/scouting_tab2_analisis.png) |
+| ![Comparativa entre jugadores](assets/scouting_tab3_comparativa.png) | ![Estadísticas del jugador: valor bruto y por 90](assets/scouting_tab2_estadisticas.png) |
 
 > 🔗 <a href="https://scouting.davidvh.com" target="_blank">Ver dashboard en vivo</a>
 

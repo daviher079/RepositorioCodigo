@@ -1,6 +1,6 @@
 # Scouting Dashboard — Segunda División
 
-Dashboard interactivo de scouting de extremos para Segunda División española, desplegado en producción con Docker en un VPS.
+Análisis de la posición de extremo en Segunda División española: clasifica a cada jugador en tres perfiles y publica el resultado en un dashboard interactivo, desplegado en producción con Docker en un VPS.
 
 **Demo en vivo:** [https://scouting.davidvh.com](https://scouting.davidvh.com)
 
@@ -8,12 +8,17 @@ Dashboard interactivo de scouting de extremos para Segunda División española, 
 
 ## Qué hace
 
-Identifica extremos fichables en Segunda División aplicando tres filtros de contexto (contrato expira 2026/27, valor de mercado < 500.000 €, mínimo 200 minutos jugados) y los evalúa con métricas técnicas y un modelo de clasificación ML.
+Describe y clasifica la posición de extremo en Segunda División. Cada jugador recibe tres notas independientes de 0 a 100 —**regateador**, **finalizador** y **creador**— construidas como índices de percentiles con pesos declarados.
 
-- **109 extremos** analizados de La Liga 2 2025-26 (Sofascore API)
-- **7 jugadores** recomendados tras aplicar el pipeline completo (Puntuacion >= 4)
-- **Modelo ML:** regresión logística con 68% de accuracy
-- **Percentiles** calculados sobre el universo completo de 109 extremos
+- **109 extremos** extraídos de La Liga 2 2025-26 (Sofascore API)
+- **84 en el pool** tras el corte de muestra (450 minutos ≈ 5 partidos), elegido barriendo el coste de cada umbral
+- **Tres notas por jugador**, no una: los pesos de cada perfil suman 100 y están declarados en `clasificacion_por_perfiles.py`
+- **Sello `jugador_seguro`** (18 de 84): atributo que se cuelga encima del perfil, no un cuarto perfil — pocas pérdidas *relativas al pool* y ≥75% de acierto en el pase, *absoluto*
+- **Percentiles** calculados sobre los 84 del pool, que es el grupo de referencia declarado
+
+**Sin modelo, a propósito.** El proyecto tuvo una regresión logística y se retiró: el target se construía con las mismas columnas que alimentaban las features —e incluía los minutos jugados como criterio positivo— así que premiaba haber jugado mucho. Sin target real no hay nada que predecir, y un índice no puede equivocarse porque no predice: su validez descansa en que los pesos estén declarados.
+
+**Contraste con el mercado** (`baseline_extremos.py`): correlación de Spearman de cada nota contra el valor de mercado — **0,14 / 0,22 / 0,15**. No es un detector de precio.
 
 ---
 
@@ -22,19 +27,25 @@ Identifica extremos fichables en Segunda División aplicando tres filtros de con
 | Script | Descripción |
 |---|---|
 | `get_dataset.py` | Extracción de métricas vía Sofascore API (tournament_id=54, season_id=77558) |
-| `limpieza_de_datos.py` | Normalización, tratamiento de nulos, tipos de dato |
-| `filtrado_jugadores.py` | Aplicación de filtros de contexto (contrato, valor mercado, minutos) |
-| `contextualizacion_y_frontera.py` | Cálculo de percentiles y definición de frontera de rendimiento |
-| `modelado_de_datos.py` | Modelo ML + puntuación final (Puntuacion >= 4 → recomendado) |
-| `dashboard_extremos.py` | Dashboard Streamlit con 3 tabs y generador de informes |
+| `limpieza_de_datos.py` | Duplicados, fechas legibles, tipos de dato · 109 filas |
+| `contextualización_y_filtrado.py` | Normalización por 90 y corte de muestra en 450 minutos · 109 → **84** |
+| `clasificacion_por_perfiles.py` | Percentiles, inversión de las métricas negativas, pesos y sello · produce las tres notas |
+| `baseline_extremos.py` | Contraste de cada nota con el valor de mercado (Spearman) |
+| `dashboard_extremos.py` | Dashboard Streamlit con 3 pestañas |
+
+Los scripts `exploracion_inicial.py`, `frontera_metricas_generacion_de_peligro.py` y `modelado_de_datos.py` están **fuera del flujo** y se conservan a propósito: son el andamio del que salió el diagnóstico del sesgo de minutos y del target circular.
 
 ---
 
 ## Dashboard
 
-- **Tab 1 — Resumen de mercado:** KPIs del universo (109 extremos), distribuciones de valor y rendimiento, top extremos recomendados
-- **Tab 2 — Comparativa de jugadores:** radar bicolor, tabla de métricas detalladas, comparativa directa entre jugadores
-- **Tab 3 — Modelo e informes:** resultados del modelo ML, umbrales de decisión, generación de informe por jugador
+Un selector de **perfil** y otro de **tramo de nota** viven fuera de las pestañas: las tres comparten la misma selección.
+
+- **Tab 1 — Resumen general:** medias del perfil elegido, distribución por pie dominante y listado de extremos con su nota, sus minutos y el sello
+- **Tab 2 — Análisis individual:** radar de seis ejes (tres comunes a todo extremo y tres del perfil activo), ficha del jugador, y sus estadísticas con el valor bruto y el por 90 juntos
+- **Tab 3 — Comparativa:** dos jugadores sobre los mismos ejes, tabla enfrentada y la nota y el sello de cada uno
+
+Los números del radar son **percentiles** dentro de los 84, y las etiquetas lo dicen. Dos botones de información explican en pantalla cómo se calcula la nota del perfil activo —con sus pesos— y qué es un jugador seguro.
 
 ---
 
@@ -100,16 +111,20 @@ docker run -d -p 8501:8501 --restart unless-stopped --name scouting-dashboard sc
 ```
 ScoutingDashboard/
 ├── pipeline_extremos_segunda_division/
-│   ├── dashboard_extremos.py          # Dashboard principal
-│   ├── limpieza_de_datos.py
-│   ├── filtrado_jugadores.py
-│   ├── contextualizacion_y_frontera.py
-│   ├── modelado_de_datos.py
-│   └── exploracion_inicial.py
-├── get_dataset.py                           # Extracción vía Sofascore API
-├── dataset_extremos_filtrado_modelado.csv   # Datos del dashboard (109 extremos)
-├── dataset_extremos_contextualizados.csv    # Dataset de referencia para percentiles
-├── .streamlit/config.toml                   # Tema visual
+│   ├── dashboard_extremos.py                  # Dashboard principal
+│   ├── limpieza_de_datos.py                   # 1 · duplicados, fechas, tipos
+│   ├── contextualización_y_filtrado.py        # 2 · por 90 y corte de muestra
+│   ├── clasificacion_por_perfiles.py          # 3 · percentiles, pesos y sello
+│   ├── baseline_extremos.py                   # contraste con el valor de mercado
+│   ├── frontera_metricas_generacion_de_peligro.py   # andamio (fuera del flujo)
+│   ├── modelado_de_datos.py                   # andamio (fuera del flujo)
+│   └── exploracion_inicial.py                 # andamio (fuera del flujo)
+├── get_dataset.py                     # Extracción vía Sofascore API
+├── dataset_extremos.csv               # crudo de la API (109)
+├── dataset_extremos_limpio.csv        # tras limpieza (109)
+├── dataset_extremos_filtrado.csv      # el pool, tras el corte de muestra (84)
+├── dataset_extremos_perfiles.csv      # con las tres notas y el sello — lo que lee el dashboard
+├── .streamlit/config.toml             # Tema visual
 ├── Dockerfile
 └── requirements.txt
 ```
