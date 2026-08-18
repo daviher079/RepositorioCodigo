@@ -71,8 +71,8 @@ Análisis de la posición de extremo en Segunda División española: extracción
 
 | | |
 |---|---|
-| ![Resumen general por perfil](assets/scouting_tab1_resumen.png) | ![Análisis individual: radar por perfil, nota y sello](assets/scouting_tab2_analisis.png) |
-| ![Comparativa entre jugadores](assets/scouting_tab3_comparativa.png) | ![Estadísticas del jugador: valor bruto y por 90](assets/scouting_tab2_estadisticas.png) |
+| ![Resumen general por perfil](assets/scouting_2026_08_resumen.png) | ![Análisis individual: radar por perfil, nota y sello](assets/scouting_2026_08_individual.png) |
+| ![Comparativa entre jugadores](assets/scouting_2026_08_comparativa.png) | ![Estadísticas del jugador: valor bruto y por 90](assets/scouting_2026_08_estadisticas.png) |
 
 > 🔗 <a href="https://scouting.davidvh.com" target="_blank">Ver dashboard en vivo</a>
 
