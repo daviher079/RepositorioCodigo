@@ -23,3 +23,6 @@ graph.json
 
 # Patrón existente
 **/Match/
+
+# datos muertos: los genera un script fuera del flujo
+Unisport-FutbolDataAcademy/ScoutingDashboard/dataset_extremos_contextualizados.csv

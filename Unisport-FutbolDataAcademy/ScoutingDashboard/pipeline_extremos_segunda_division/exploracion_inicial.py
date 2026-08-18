@@ -13,8 +13,9 @@ df.info()
 print(df.describe())
 print(df.head())
 
-columns_corr = df.loc[:, 'goles':].drop(columns='minutos_jugados')
-m = columns_corr.corrwith(df['minutos_jugados']).sort_values(ascending=False)
+columns_corr = df.loc[:, 'goles':]
+columns_corr_dp_mins = columns_corr.drop(columns='minutos_jugados')
+m = columns_corr_dp_mins.corrwith(df['minutos_jugados']).sort_values(ascending=False)
 print(m)
 print(m.diff())
 

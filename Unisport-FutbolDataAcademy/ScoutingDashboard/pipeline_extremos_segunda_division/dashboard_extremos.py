@@ -3,13 +3,11 @@ import pandas as pd
 import numpy as np
 import plotly.express as px
 import plotly.graph_objects as go
-import matplotlib.pyplot as plt
 import ast
 import os
-from mplsoccer import PyPizza, Pitch
+from mplsoccer import PyPizza
 import math
 from scipy import stats
-import matplotlib.patheffects as path_effects
 
 
 st.set_page_config(
@@ -18,19 +16,22 @@ st.set_page_config(
     layout="wide"
 )
 
-BASE = os.path.join(os.path.dirname(__file__), "..", "dataset_extremos_filtrado_modelado.csv")
+BASE = os.path.join(os.path.dirname(__file__), "..", "dataset_extremos_perfiles.csv")
 df = pd.read_csv(BASE)
 
-BASE_REF = os.path.join(os.path.dirname(__file__), "..", "dataset_extremos_contextualizados.csv")
-df_ref = pd.read_csv(BASE_REF)
 
-st.title("Dashboard de Análisis Zamora Club de Futbol")
-st.markdown("Criterios aplicados para posibles fichajes en la posición de extremo: contrato expira 2026/27 · valor de mercado < 500.000 € · mínimo 200 min jugados")
+
+st.title("Dashboard de Análisis de la posición de extremo de Segunda División Española")
 
 st.markdown("""<style>
 div[data-baseweb="select"] input {
     pointer-events: none !important;
     caret-color: transparent !important;
+}
+/* El "delta" de st.metric se usa aquí para colgar el por 90 bajo el bruto, no para indicar
+   una variación: se le quita la flecha, que sugeriría que el dato ha subido. */
+div[data-testid="stMetricDelta"] svg {
+    display: none !important;
 }
 div[data-testid="stButton"] > button {
     background: transparent !important;
@@ -42,83 +43,165 @@ div[data-testid="stButton"] > button {
 div[data-testid="stButton"] > button:hover {
     background: rgba(255,255,255,0.08) !important;
 }
-.element-container:has(.informe-btn) ~ .element-container [data-testid="stButton"] button {
-    background: rgba(0, 153, 230, 0.15) !important;
-    border: 2px solid rgb(0, 153, 230) !important;
-    border-radius: 8px !important;
-    color: rgb(0, 153, 230) !important;
-    font-weight: 600 !important;
-    font-size: 14px !important;
-    padding: 6px 14px !important;
-    width: 100% !important;
-}
-.element-container:has(.informe-btn) ~ .element-container [data-testid="stButton"] button:hover {
-    background: rgba(0, 153, 230, 0.28) !important;
-}
 </style>""", unsafe_allow_html=True)
 
 
-TABLA_COMPARADOR_JUGADORES = {
-    "tiros_a_puerta": "tiros a puerta",
-    "grandes_ocasiones_creadas": "grandes ocasiones creadas",
-    "asistencias": "asistencias",
-    "goles": "goles",
-    "pases_ultimo_tercio": "pases ultimo tercio",
-    "pases_clave": "pases clave",
-    "porcentaje_regates_exitosos": "porcentaje regates exitosos",
-    "regates_exitosos": "regates exitosos"
+# --- PESOS DE CADA PERFIL (solo para EXPLICARLOS en pantalla) ---
+# OJO: estos números son una COPIA de los de clasificacion_por_perfiles.py, que es quien
+# calcula las notas de verdad. Si allí se mueve un peso y aquí no, el dashboard seguirá
+# explicando el viejo sin dar ningún error. Al tocar uno, tocar el otro.
+PESOS_PERFIL = {
+    "REGATEADOR": [
+        ("Regates intentados por 90",                    50, False),
+        ("% de regates exitosos",                        30, False),
+        ("Pérdidas de balón por 90",                     20, True),
+    ],
+    "FINALIZADOR": [
+        ("Goles por 90",                                 35, False),
+        ("Tiros totales por 90",                         25, False),
+        ("% de tiros a puerta",                          15, False),
+        ("Grandes ocasiones falladas por 90",            15, True),
+        ("Pérdidas de balón por 90",                     10, True),
+    ],
+    "CREADOR": [
+        ("Pases clave por 90",                           30, False),
+        ("Grandes ocasiones creadas por 90",             25, False),
+        ("% de pases clave",                             15, False),
+        ("Asistencias por 90",                           15, False),
+        ("Pérdidas de balón por 90",                     15, True),
+    ],
 }
 
-variables_radar = [
-    "tiros_a_puerta",
-    "grandes_ocasiones_creadas",
-    "asistencias",
-    "goles",
-    "pases_ultimo_tercio",
-    "pases_clave",
-    "porcentaje_regates_exitosos",
-    "regates_exitosos"
+
+@st.dialog("Cómo se calcula la nota")
+def modal_nota(perfil):
+    st.markdown(f"**Nota de {perfil}** — de 0 a 100.")
+    st.markdown(
+        "Cada métrica se convierte en **percentil** dentro de los 84 extremos del pool "
+        "(el mejor, 100; el peor, 0), se multiplica por su peso y se suman. "
+        "Los pesos de cada perfil **suman 100**."
+    )
+    st.markdown("**Qué pesa, y cuánto:**")
+    for etiqueta, peso, invertida in PESOS_PERFIL[perfil]:
+        vuelta = " · *invertida: cuantas menos, mejor*" if invertida else ""
+        st.markdown(f"- **{peso}** — {etiqueta}{vuelta}")
+    if perfil == "CREADOR":
+        st.markdown(
+            "**Y un escalón aparte, fuera de esos 100:** −10 puntos si acierta menos del "
+            "**75%** de sus pases. Un creador que no da bien el pase sencillo no es un creador, "
+            "por bien que reparta los difíciles."
+        )
+    st.caption("Las métricas negativas no restan: se les da la vuelta antes de sumar, para que "
+               "el techo de cada perfil no dependa de cuánto peso sea negativo.")
+
+
+# --- EJES DEL RADAR: 3 fijas + 3 del perfil (6 en total) ---
+# Las FIJAS describen lo que hace cualquier extremo, gane el perfil que gane, y son las
+# que permiten comparar a un creador con un regateador. Se eligieron por cobertura
+# (las tres tienen valor en 83-84 de los 84) y por no pisarse entre ellas.
+# Goles y asistencias quedaron fuera de las fijas: 12 y 13 extremos las tienen a cero,
+# y un eje pegado al centro no compara, deja un hueco que se lee como "malo".
+RADAR_FIJAS = [
+    ("pases_ultimo_tercio_por_90",          "Pases último tercio/90"),
+    ("porcentaje_pases_acertados",          "% pases acertados"),
+    ("perdidas_de_balon_por_90_invertido",  "Pérdidas de balón/90 (inv.)"),   # invertida: más lejos = pierde menos
 ]
 
-JUGADORES_INFORME = {
-    "José Corpas":{
-        "perfil": "extremo que destaca por su capacidad para crear peligro, generando gran cantidad de pases clave y una gran capacidad de regates exitosos, pese a su edad 34 años de edad se encuentra por encima del 63% de los extremos generando grandes ocasiones cada 90 minutos y estando por encima del 72% de los jugadores de su posicion repartiendo asistencias. Se justifican con sus 58 pases clave y sus 12 grandes oportunidades creadas, además de tener un porcentaje alto de regates exitosos de 40,8%, sus 3168 minutos jugados lo avalan como jugador importante para su entrenador y teniendo una capacidad de G + A por 90 de 0,31 muy cercano a la media de la categoria que son 0,37.", 
-        "situación contractual": "Su situación contractual es atractiva ya que su contrato termina este año y su valor es inferior a 500K€",
-        "recomendacion": "Prioritario"
-    },
-    "Jastin García":{
-       "perfil": "extremo que destaca por su gran capacidad para generar peligro y mucho desborde, destaca por su gran cantidad de pases al último tercio (143), sus pases claves(21) y su buen porcentaje de regates exitosos(53,8%) lo que lo lleva a estar por encima del 94% de extremos por 90 min, pese a su edad 22 años, suma un total de 1368 minutos, y ha generado 3 goles y 2 asistencias y está cerca de la media de la categoría con un G + A por 90 de 0,33 muy cercano a la media de la categoria que son 0,37.",
-        "situación contractual": "Su situación contractual  es atractiva ya que su contrato termina este año y su valor es inferior a 500K€",
-        "recomendacion": "Recomendable"
-    },
-    "Salim El Jebari":{
-        "perfil": "Extremo que destaca por su gran capacidad para generar peligro y mucho desborde, destaca por su gran cantidad de pases al último tercio (103), sus pases claves(24) y su buen porcentaje de regates exitosos(53,9%) lo que lo lleva a estar por encima del 81% de extremos por 90 min, pese a su edad 22 años, suma un total de 1371 minutos, y ha generado 1 gol y 4 asistencias y está cerca de la media de la categoría con un G + A por 90 de 0,33 muy cercano a la media de la categoria que son 0,37. ",
-        "situación contractual": "Su situación contractual  es atractiva ya que su contrato termina este año y su valor es inferior a 500K€",
-        "recomendacion": "Recomendable"
-    },
-    "Francisco Portillo":{
-        "perfil": "Jugador que puede jugar en la posicion de extremo que destaca por su capacidad de generar juego siendo su mejor faceta la cantidad de pases al último tercio(364) y los pases clave(44) que es capaz de dar, por lo tanto su capacidad de generar peligro es alta para la categoría, tiene una gran capacidad para el regate teniendo un 45,1% de exito en sus intentos lo que lo lleva a estar por encima del 48% de los jugadores de su posicion, pero lo intenta pocas veces por partido ya que se encuentra por encima de solo el 23% de los jugadores de esa posicion. Su capacidad de G + A por 90 min es 0,14. Es baja y está lejos de la media de la categoría(0,37). Sin embargo es un buen generador de asistencias con 3 asistencias lo que lo situa por encima del 91% de jugadores de su posición y ha aportado un gol.",
-        "situación contractual": "Su situación contractual  es atractiva ya que su contrato termina este año y su valor es inferior a 200K€",
-        "recomendacion": "Recomendable"
-    },
-    "Toni Villa":{
-        "perfil": "Jugador que puede jugar en la posición de extremo que destaca por su capacidad de generar juego, siendo su mejor faceta la cantidad de pases al último tercio(46) y los pases clave que es capaz de dar(11), aunque su capacidad de generar peligro es alta para la categoría, estos datos hay que cogerlos con cuidado ya que sus minutos de juego han sido tan solo 286. Lo que le hace tener una alta G + A por 90 Min de 0.63, pero esto es debido a su baja participación en el equipo. El fichaje puede ser interesante ya que es un jugador con experiencia en categorías superiores como puede ser primera división. Aunque esta temporada ha sumado pocos minutos.",
-        "situación contractual": "Su situación contractual  es atractiva ya que su contrato termina este año y su valor es inferior a 300K€",
-        "recomendacion": "Interesante"
-    },
-    "Stoichkov":{
-      "perfil": "Jugador que puede jugar tanto en la posición de extremo como en la posición de delantero, destaca por su capacidad de finalización y de generación de asistencias; sus 5 goles y sus 3 asistencias lo hacen situarse por encima de la media de los extremos de la categoría ya que tiene un G + A por 90 Min de 0,44 en 1633 minutos jugados. Es un gran generador de ocasiones cada 90 minutos con 8 grandes ocasiones creadas y lo sitúa por encima del 79% de los jugadores de su posición. Aunque no es un extremo al uso, ya que sus 11 regates exitosos en la temporada (0,6 por 90) lo sitúan solo por encima del 14% de los extremos, y sus 95 pases al último tercio en la temporada (5,2 por 90) solo superan al 12% de los extremos. Puede ser más interesante en un perfil de delantero que de extremo.",
-      "situación contractual": "Su situación contractual es atractiva ya que su contrato termina este año y su valor es inferior a 500K€",
-      "recomendacion": "Interesante"
-  },
-
-    "Ali Houary":{
-      "perfil": "Extremo joven de 20 años con solo 642 minutos en la temporada, lo que hace que cualquier dato deba interpretarse con cautela. Su mayor activo es el porcentaje de regates exitosos (52,6%), que lo sitúa en el percentil alto de los extremos de la categoría y sugiere una buena capacidad técnica en el uno contra uno. Ha aportado 1 asistencia y 0 goles, con un G + A por 90 Min de 0,14, lejos de la media de la categoría (0,37), aunque la baja participación hace que este dato no sea representativo. Sus 10 regates exitosos y 61 pases al último tercio en la temporada muestran un perfil de desborde más que de creación. Es una apuesta de futuro, no una solución inmediata.",
-      "situación contractual": "Su situación contractual es atractiva ya que su contrato termina este año y su valor es ligeramente superior a 300K€",
-      "recomendacion": "A vigilar"
-  }
+# Las PROPIAS son las tres de mayor peso de cada perfil, para que el radar se parezca
+# a la nota. Del finalizador cae grandes_ocasiones_falladas y del creador asistencias:
+# mismo peso (15) que las que se quedan, pero peor cobertura (74/84 y 71/84).
+RADAR_PERFIL = {
+    "REGATEADOR": [
+        ("regates_intentados_por_90",        "Regates intentados/90"),      # peso 50
+        ("porcentaje_regates_exitosos",      "% regates exitosos"),         # peso 30
+        ("tiros_a_puerta_por_90",            "Tiros a puerta/90"),          # complemento: ¿el desborde acaba en algo?
+    ],
+    "FINALIZADOR": [
+        ("goles_por_90",                     "Goles/90"),                   # peso 35
+        ("tiros_totales_por_90",             "Tiros totales/90"),           # peso 25
+        ("porcentaje_tiros_a_puerta",        "% tiros a puerta"),           # peso 15
+    ],
+    "CREADOR": [
+        ("pases_clave_por_90",               "Pases clave/90"),             # peso 30
+        ("grandes_ocasiones_creadas_por_90", "Grandes ocasiones creadas/90"),# peso 25
+        ("porcentaje_pases_clave",           "% pases clave"),              # peso 15
+    ],
 }
 
+
+def nota_y_sello(jugador, color, perfil):
+    """El círculo de la nota y el sello, con el mismo formato que la ficha del Tab 2.
+
+    Sin los botones de info: los dos modales explican el CONCEPTO, no al jugador, y aquí
+    se repetirían hasta cuatro veces diciendo lo mismo.
+    """
+    c_nota, c_seguro = st.columns([1, 1])
+
+    with c_nota:
+        st.markdown(f"""
+        <div style="
+            width:110px; height:110px; border-radius:50%;
+            background-color:{color['bg']};
+            border:2px solid {color['border']};
+            display:flex; flex-direction:column;
+            align-items:center; justify-content:center;
+            text-align:center;
+        ">
+            <span style="font-size:26px; font-weight:bold; color:{color['puntuacion']};">{jugador[perfil]:.2f}</span>
+            <span style="font-size:11px; color:{color['puntuacion']};">Nota Perfil</span>
+        </div>
+        """, unsafe_allow_html=True)
+
+    with c_seguro:
+        st.markdown(
+            "<div style='font-size:13px; font-weight:600; white-space:nowrap; padding-top:10px;'>"
+            "Jugador Seguro:</div>",
+            unsafe_allow_html=True
+        )
+        st.markdown(
+            f"<div style='font-size:34px; text-align:center; line-height:1.2;'>"
+            f"{'✅' if bool(jugador['jugador_seguro']) else '❌'}</div>",
+            unsafe_allow_html=True
+        )
+
+
+def ejes_radar(perfil):
+    """Los 6 ejes del radar de ese perfil: primero las 3 fijas, luego las 3 suyas."""
+    return RADAR_FIJAS + RADAR_PERFIL[perfil]
+
+TEXTO_PERFIL = {
+    "CREADOR": {
+        "columna_dos":    ("Pases clave por 90", "pases_clave_por_90"),
+        "columna_tres":   ("Grandes ocasiones creadas por 90", "grandes_ocasiones_creadas_por_90"),
+        "columna_cuatro": ("Asistencias por 90", "asistencias_por_90"),
+    },
+    "FINALIZADOR": {
+        "columna_dos":    ("Goles por 90", "goles_por_90"),
+        "columna_tres":   ("Tiros totales por 90", "tiros_totales_por_90"),
+        "columna_cuatro": ("Porcentaje tiros a puerta", "porcentaje_tiros_a_puerta"),
+    },
+    "REGATEADOR": {
+        "columna_dos":    ("Regates intentados por 90", "regates_intentados_por_90"),
+        "columna_tres":   ("Porcentaje regates exitosos", "porcentaje_regates_exitosos"),
+        "columna_cuatro": ("Perdidas de balon por 90", "perdidas_de_balon_por_90"),
+    },
+}
+
+TEXTO_VERTICAL_BARS = {
+    "CREADOR":{
+        "texto": "Grandes ocasiones creadas por 90 vs Asistencias por 90",
+        "variables": ("grandes_ocasiones_creadas_por_90", "asistencias_por_90")
+    },
+    "FINALIZADOR":{
+        "texto": "Goles por 90 vs Tiros a puerta por 90",
+        "variables": ("goles_por_90", "tiros_a_puerta_por_90")
+    },
+    "REGATEADOR":{
+        "texto": "Regates intentados por 90 vs perdidas de balón por 90",
+        "variables": ("regates_intentados_por_90", "perdidas_de_balon_por_90") 
+    } 
+    
+}
 
 
 COLORES_NIVEL = {
@@ -126,7 +209,6 @@ COLORES_NIVEL = {
         "bg":         "rgba(0, 204, 150, 0.2)",
         "border":     "rgb(0, 204, 150)",
         "puntuacion": "rgb(0, 204, 150)",
-        "mpl":        (0/255, 204/255, 150/255),
         "mpl_oscuro": (0/255, 163/255, 120/255),
         "mpl_claro":  (102/255, 255/255, 204/255),
         "css_oscuro": "#00A378",
@@ -136,7 +218,6 @@ COLORES_NIVEL = {
         "bg":         "rgba(255, 165, 0, 0.2)",
         "border":     "rgb(255, 165, 0)",
         "puntuacion": "rgb(255, 165, 0)",
-        "mpl":        (255/255, 165/255, 0/255),
         "mpl_oscuro": (204/255, 132/255, 0/255),
         "mpl_claro":  (255/255, 210/255, 120/255),
         "css_oscuro": "#CC8400",
@@ -146,7 +227,6 @@ COLORES_NIVEL = {
         "bg":         "rgba(254, 1, 1, 0.2)",
         "border":     "rgb(254, 1, 1)",
         "puntuacion": "rgb(254, 1, 1)",
-        "mpl":        (254/255, 1/255, 1/255),
         "mpl_oscuro": (204/255, 0/255, 0/255),
         "mpl_claro":  (255/255, 110/255, 110/255),
         "css_oscuro": "#CC0000",
@@ -157,66 +237,34 @@ COLORES_NIVEL = {
 def umbrales_puntuacion(puntuacion):
     if pd.isna(puntuacion):
         nivel = "rojo"
-    elif puntuacion >= 5.6:
+    elif puntuacion >= 70:
         nivel = "verde"
-    elif puntuacion >= 4:
+    elif (puntuacion >= 50) & (puntuacion <70):
         nivel = "ambar"
+    else:
+        nivel = "rojo"
     return nivel
 
 
 
-@st.dialog("Cómo se calcula la puntuación")
-def modal_puntuacion():
-    st.markdown("**Modelo:** Regresión Logística")
-    st.markdown("**Criterios positivos:**")
-    st.markdown("""
-- Pases clave
-- Grandes ocasiones creadas / minuto
-- Pases al último tercio / minuto
-- % regates exitosos
-- Minutos jugados
-    """)
-    st.markdown("**Criterio negativo:**")
-    st.markdown("- Grandes ocasiones falladas / minuto")
+def calcular_percentiles(jugador, df_ref, ejes):
+    """Sitúa al jugador dentro del pool, eje por eje.
 
+    NO normaliza por minutos: las columnas que llegan aquí ya vienen normalizadas del
+    pipeline (_por_90, porcentaje_ o _invertido). Dividir otra vez sería contarlo dos veces.
+    """
+    return [
+        math.floor(stats.percentileofscore(df_ref[col], jugador[col]))
+        for col, _ in ejes
+    ]
 
-@st.dialog("Informe del Jugador seleccionado")
-def modal_informe(jugador_seleccionado):
-    jugador = JUGADORES_INFORME[jugador_seleccionado]
-    st.markdown(f"**Jugador:** {jugador_seleccionado}")
-    st.markdown(f"**Recomendación:** {jugador['recomendacion']}")
-    st.markdown(f"**Situación Contractual:** {jugador['situación contractual']}")
-    st.markdown(f"**Informe:** {jugador['perfil']}")
-
-
-def calcular_percentiles(jugador, df_ref):
-    values = []
-    for col in variables_radar:
-        if col == "porcentaje_regates_exitosos":
-            p = math.floor(
-                stats.percentileofscore(
-                    df_ref[col],
-                    jugador[col]
-                )
-            )
-        else:
-            p = math.floor(
-                stats.percentileofscore(
-                    df_ref[col] / (df_ref['minutos_jugados'] / 90),
-                    jugador[col] / (jugador['minutos_jugados'] / 90)
-                )
-            )
-
-        values.append(p)
-    return values
-
-def render_radar(values, color): 
+def render_radar(values, color, ejes):
     for n, i in enumerate(values):
         if i == 100:
             values[n] = 99
 
     baker = PyPizza(
-        params= variables_radar,
+        params=[etiqueta for _, etiqueta in ejes],
         straight_line_color= (0.7, 0.7, 0.7, 0.5),
         straight_line_lw = 0.5,
         last_circle_color= (0.7, 0.7, 0.7, 0.5),
@@ -226,11 +274,12 @@ def render_radar(values, color):
         other_circle_ls = "-."
         )
 
-    colores_slices = [color['mpl_oscuro']] * 4 + [color['mpl_claro']] * 4
+    # 3 fijas en claro, 3 propias del perfil en oscuro: el color separa contexto de nota
+    colores_slices = [color['mpl_claro']] * 3 + [color['mpl_oscuro']] * 3
 
     fig, ax = baker.make_pizza(
         values,
-        figsize=(3, 3),
+        figsize=(2.6, 2.6),
         param_location=110,
         kwargs_slices=dict(
             facecolor=colores_slices,
@@ -254,44 +303,90 @@ def render_radar(values, color):
         )
     )
 
-    st.pyplot(fig, transparent=True)
+    st.pyplot(fig, transparent=True, width='content')
 
+
+@st.dialog("Qué es un jugador seguro")
+def modal_jugador_seguro():
+    st.markdown("Un extremo que, además de lo que haga en ataque, **no regala el balón**. "
+                "Se cumplen **las dos** condiciones a la vez:")
+    st.markdown(
+        "**1. Pierde pocos balones** — está en el **40% que menos pierde** por cada 90 minutos, "
+        "dentro de los 84 extremos del pool.\n\n"
+        "Es una condición **relativa**: se mide contra los demás extremos de la categoría, "
+        "así que *pocas pérdidas* significa pocas para un extremo de Segunda."
+    )
+    st.markdown(
+        "**2. Acierta al menos el 75% de sus pases.**\n\n"
+        "Es una condición **absoluta**: no depende del pool. Un 75% es un 75% aquí y en "
+        "cualquier otra categoría, así que el sello significa lo mismo si algún día entra otra liga."
+    )
+    st.markdown("Lo cumplen **18 de los 84** extremos.")
+    st.markdown("No es un cuarto perfil: es una etiqueta que se cuelga **encima** del que ya tenga "
+                "el jugador — *regateador, y además seguro*.")
+
+
+def caracteristicas_perfil(perfil):
+    return TEXTO_PERFIL[perfil]
+
+
+
+def col_grafica_horizontal(df, perfil, TEXTO_VERTICAL_BARS):
+        datos_perfil = TEXTO_VERTICAL_BARS[perfil]
+        texto = datos_perfil['texto']
+        var1, var2 = datos_perfil['variables']
+        st.subheader(texto)
+        fig = px.bar(
+            df,
+            x="nombre",
+            y=[var1, var2],
+            barmode="group",
+            color_discrete_sequence=["#00CC96", "#FE0101"]
+        )
+        fig.update_layout(xaxis_tickangle=-45, xaxis_title="", legend_title="")
+        st.plotly_chart(fig, use_container_width=True)
+
+PERFILES = ["CREADOR", "FINALIZADOR", "REGATEADOR"]
+NOTAS = {
+    "< 50":    (0,   50),
+    "50 - 70": (50,  70),
+    "> 70":    (70, 101),
+}
+perfil = st.segmented_control("Perfil", PERFILES, default=PERFILES[0]) or PERFILES[0]
+nota   = st.segmented_control("Nota", list(NOTAS), default="> 70") or "> 70"
+minimo, maximo = NOTAS[nota]
+df_filtros = df[(df[perfil] >= minimo) & (df[perfil] < maximo)]
 
 tabs = st.tabs(["Resumen General", "Análisis Individual", "Comparativa"])
 
 # === TAB 1: RESUMEN GENERAL ===
 with tabs[0]:
+    columnas = caracteristicas_perfil(perfil)
+    
     col1, col2, col3, col4 = st.columns(4)
 
     with col1:
-        st.metric(label="Extremos recomendados", value=len(df))
+        st.metric(label="Extremos de ese perfil", value=len(df_filtros))
     with col2:
-        st.metric(label="G + A por 90 (media categoría)", value=f"{(df_ref['goles'].sum() + df_ref['asistencias'].sum()) / df_ref['minutos_jugados'].sum() * 90:.2f}")
+        key, value = columnas['columna_dos']
+        st.metric(label= "Media de " f"{key}", value=f"{round(df_filtros[value].mean(), 2)}")
     with col3:
-        st.metric(label="% Regates exitosos (media categoría)", value=f"{df_ref['porcentaje_regates_exitosos'].mean():.1f}%")
+        key, value = columnas['columna_tres']
+        st.metric(label= "Media de " f"{key}", value=f"{round(df_filtros[value].mean(), 2)}")
     with col4:
-        st.metric(label="Grandes ocasiones creadas / 90 (media categoría)", value=f"{(df_ref['grandes_ocasiones_creadas'] / (df_ref['minutos_jugados'] / 90)).mean():.2f}")
+        key, value = columnas['columna_cuatro']
+        st.metric(label="Media de " f"{key}", value=f"{round(df_filtros[value].mean(), 2)}")
 
     st.divider()
 
     col1, col2 = st.columns(2)
 
     with col1:
-        st.subheader("Grandes oportunidades Creadas vs Falladas")
-        fig = px.bar(
-            df,
-            x="nombre",
-            y=["grandes_ocasiones_creadas", "grandes_ocasiones_falladas"],
-            barmode="group",
-            title="Grandes oportunidades creadas y falladas",
-            color_discrete_sequence=["#00CC96", "#FE0101"]
-        )
-        fig.update_layout(xaxis_tickangle=-45, xaxis_title="", legend_title="")
-        st.plotly_chart(fig, use_container_width=True)
+        col_grafica_horizontal(df_filtros, perfil, TEXTO_VERTICAL_BARS)
 
     with col2:
         st.subheader("Distribución del pie dominante")
-        df_pie = df["pie_dominante"].value_counts().reset_index()
+        df_pie = df_filtros["pie_dominante"].value_counts().reset_index()
         df_pie.columns = ["Pie Dominante", "Jugadores"]
         fig = px.pie(
             df_pie,
@@ -306,33 +401,39 @@ with tabs[0]:
 
     st.subheader("Listado de Extremos")
 
+    # Informe general: todas las columnas valen para cualquier extremo, gane el perfil que
+    # gane. Las de producción van POR 90 y no en crudo: un conteo se acumula, y ordenar por
+    # él premia a quien más juega (G+A crudo correlaciona 0,70 con los minutos; por 90, 0,20).
+    # Los minutos se quedan al lado para poder leer con cautela a los de poca muestra.
     df_tabla = pd.DataFrame({
-        "Nombre": df["nombre"],
-        "Equipo": df["equipo"],
-        "Goles + Asistencias": df["goles"] + df["asistencias"],
-        "Minutos Jugados": df["minutos_jugados"],
-        "Regates Exitosos %": df["porcentaje_regates_exitosos"].round(1),
-        "Tiros a Puerta %": (
-            df["tiros_a_puerta"] / df["tiros_totales"].replace(0, np.nan) * 100
-        ).round(1),
-        "Pases Clave": df["pases_clave"],
-        "Pases al Último Tercio": df["pases_ultimo_tercio"],
+        "Nombre": df_filtros["nombre"],
+        "Equipo": df_filtros["equipo"],
+        "G + A por 90": (
+            (df_filtros["goles"] + df_filtros["asistencias"]) / df_filtros["minutos_jugados"] * 90
+        ).round(2),
+        "Minutos Jugados": df_filtros["minutos_jugados"],
+        "Pases al Último Tercio cada 90 mins.": df_filtros["pases_ultimo_tercio_por_90"].round(2),
+        "Pases Clave por 90": df_filtros["pases_clave_por_90"].round(2),
+        "Pérdidas por 90": df_filtros["perdidas_de_balon_por_90"].round(2),
+        "Pases Acertados %": df_filtros["porcentaje_pases_acertados"].round(1),
+        # mismo lenguaje visual que la ficha del Tab 2: check verde / aspa roja
+        "Jugador Seguro": df_filtros["jugador_seguro"].map({True: "✅", False: "❌"}),
+        "Nota": df_filtros[perfil],
     })
 
     st.dataframe(
         df_tabla,
         column_config={
-            "Regates Exitosos %": st.column_config.ProgressColumn(
-                "Regates Exitosos %",
+            "Pases Acertados %": st.column_config.ProgressColumn(
+                "Pases Acertados %",
                 format="%.1f%%",
                 min_value=0,
                 max_value=100,
             ),
-            "Tiros a Puerta %": st.column_config.ProgressColumn(
-                "Tiros a Puerta %",
-                format="%.1f%%",
-                min_value=0,
-                max_value=100,
+            "Jugador Seguro": st.column_config.TextColumn(
+                "Jugador Seguro",
+                help="Pierde pocos balones (40% que menos pierde del pool) y acierta ≥75% de los pases",
+                alignment="center",
             ),
         },
         hide_index=True
@@ -343,45 +444,17 @@ with tabs[0]:
 with tabs[1]:
     jugador_seleccionado = st.selectbox(
         "Seleccionar Jugador",
-        options=df["nombre"].tolist(),
+        options=df_filtros["nombre"].tolist(),
         index=0,
         key="jugador_selector"
     )
 
-    jugador = df[df["nombre"] == jugador_seleccionado].iloc[0]
-    color = COLORES_NIVEL[umbrales_puntuacion(jugador['Puntuacion'])]
+    jugador = df_filtros[df_filtros["nombre"] == jugador_seleccionado].iloc[0]
+    color = COLORES_NIVEL[umbrales_puntuacion(jugador[perfil])]
 
-    col_nombre, col_informe, col_circulo = st.columns([2, 5, 1])
-
-    with col_nombre:
-        st.markdown(f"<h2 style='margin:0; padding-top:10px;'>{jugador_seleccionado}</h2>",
-                    unsafe_allow_html=True)
-
-    with col_informe:
-        st.markdown('<div class="informe-btn">', unsafe_allow_html=True)
-        if st.button("Ver Informe", key="btn_informe"):
-            modal_informe(jugador_seleccionado)
-        st.markdown('</div>', unsafe_allow_html=True)
-
-    with col_circulo:
-        if st.button("ℹ️", key="btn_info"):
-            modal_puntuacion()
-
-        st.markdown(f"""
-        <div style="
-            width:110px; height:110px; border-radius:50%;
-            background-color:{color['bg']};
-            border:2px solid {color['border']};
-            display:flex; flex-direction:column;
-            align-items:center; justify-content:center;
-            text-align:center;
-        ">
-            <span style="font-size:26px; font-weight:bold; color:{color['puntuacion']};">{jugador['Puntuacion']:.2f}</span>
-            <span style="font-size:11px; color:{color['puntuacion']};">Puntuación</span>
-        </div>
-        """, unsafe_allow_html=True)
-
-    st.divider()
+   
+    st.markdown(f"<h2 style='margin:0; padding-top:10px;'>{jugador_seleccionado}</h2>",
+                unsafe_allow_html=True)
 
     posiciones = ', '.join(ast.literal_eval(jugador['posicion_detallada']))
 
@@ -389,8 +462,9 @@ with tabs[1]:
 
 
     with col_radar:
-        values = calcular_percentiles(jugador, df_ref)
-        render_radar(values, color)
+        ejes = ejes_radar(perfil)
+        values = calcular_percentiles(jugador, df, ejes)
+        render_radar(values, color, ejes)
        
 
     with col_ficha:
@@ -399,7 +473,7 @@ with tabs[1]:
             st.metric(label="Equipo",            value= jugador['equipo'])
             st.metric(label="Altura",            value= f"{jugador['altura']} cm")
             st.metric(label="Posiciones",        value= posiciones)
-            st.metric(label="Valor de Mercado",  value= jugador['valor_mercado'])
+            st.metric(label="Valor de Mercado",  value= jugador['valor_mercado_fmt'])
         with f2:
             st.metric(label="Edad",              value= jugador['edad'])
             st.metric(label="Pie dominante",     value= jugador['pie_dominante'])
@@ -416,68 +490,163 @@ with tabs[1]:
             <div style="font-size:13px; font-weight:600; color:#aaa; letter-spacing:0.08em; margin-bottom:10px;">
                 LEYENDA RADAR
             </div>
+            <div style="font-size:12px; color:#888; margin-top:-6px;">
+                Cada número es el <b>percentil</b> dentro de los 84 extremos del pool, no el valor de la métrica.
+            </div>
         </div>
         """, unsafe_allow_html=True)
         
-        col_ofensiva, col_creacion = st.columns([1, 1])
+        col_fijas, col_propias = st.columns([1, 1])
 
-        with col_ofensiva:
+        # La leyenda se genera desde los ejes: si cambian las métricas de un perfil,
+        # cambia sola. Antes eran ocho líneas escritas a mano.
+        def _bloque_leyenda(pares, css):
+            filas = "".join(
+                f'<span style="background:{css}; border-radius:3px; padding:2px 10px;'
+                f' margin-right:8px;">&nbsp;</span> {etiqueta} — <b>{valor}</b><br>'
+                for etiqueta, valor in pares
+            )
+            return f'<div style="font-size:15px; line-height:2.3;">{filas}</div>'
+
+        etiquetas = [e for _, e in ejes]
+        fijas   = list(zip(etiquetas[:3], values[:3]))
+        propias = list(zip(etiquetas[3:], values[3:]))
+
+        with col_fijas:
+            st.markdown(f'<div style="font-size:12px; color:#888;">COMÚN A TODO EXTREMO</div>',
+                        unsafe_allow_html=True)
+            st.markdown(_bloque_leyenda(fijas, color['css_claro']), unsafe_allow_html=True)
+
+        with col_propias:
+            st.markdown(f'<div style="font-size:12px; color:#888;">PESA EN LA NOTA DE {perfil}</div>',
+                        unsafe_allow_html=True)
+            st.markdown(_bloque_leyenda(propias, color['css_oscuro']), unsafe_allow_html=True)
+
+        st.divider()
+        col_nota, col_seguro = st.columns([1, 1])
+
+        with col_nota:
+            c_circulo, c_info_nota = st.columns([2, 1])
+
+            with c_info_nota:
+                if st.button("ℹ️", key="btn_nota"):
+                    modal_nota(perfil)
+
+            with c_circulo:
                 st.markdown(f"""
-                    <div style="font-size:15px; line-height:2.3;">
-                        <span style="background:{color['css_oscuro']}; border-radius:3px; padding:2px 10px; margin-right:8px;">&nbsp;</span> Tiros a puerta/90 — <b>{values[0]}</b><br>
-                        <span style="background:{color['css_oscuro']}; border-radius:3px; padding:2px 10px; margin-right:8px;">&nbsp;</span> Grandes ocasiones/90 — <b>{values[1]}</b><br>
-                        <span style="background:{color['css_oscuro']}; border-radius:3px; padding:2px 10px; margin-right:8px;">&nbsp;</span> Asistencias/90 — <b>{values[2]}</b><br>
-                        <span style="background:{color['css_oscuro']}; border-radius:3px; padding:2px 10px; margin-right:8px;">&nbsp;</span> Goles/90 — <b>{values[3]}</b><br>
-                    </div>
-                """, 
-                    unsafe_allow_html=True)
-                
-        with col_creacion:
-                st.markdown(f"""
-                    <div style="font-size:15px; line-height:2.3;">
-                        <span style="background:{color['css_claro']}; border-radius:3px; padding:2px 10px; margin-right:8px;">&nbsp;</span> Pases último tercio/90 — <b>{values[4]}</b><br>
-                        <span style="background:{color['css_claro']}; border-radius:3px; padding:2px 10px; margin-right:8px;">&nbsp;</span> Pases clave/90 — <b>{values[5]}</b><br>
-                        <span style="background:{color['css_claro']}; border-radius:3px; padding:2px 10px; margin-right:8px;">&nbsp;</span> % Regates exitosos — <b>{values[6]}</b><br>
-                        <span style="background:{color['css_claro']}; border-radius:3px; padding:2px 10px; margin-right:8px;">&nbsp;</span> Regates exitosos/90 — <b>{values[7]}</b>
-                    </div>
-                """, 
-                    unsafe_allow_html=True)
+                <div style="
+                    width:110px; height:110px; border-radius:50%;
+                    background-color:{color['bg']};
+                    border:2px solid {color['border']};
+                    display:flex; flex-direction:column;
+                    align-items:center; justify-content:center;
+                    text-align:center;
+                ">
+                    <span style="font-size:26px; font-weight:bold; color:{color['puntuacion']};">{jugador[perfil]:.2f}</span>
+                    <span style="font-size:11px; color:{color['puntuacion']};">Nota Perfil</span>
+                </div>
+                """, unsafe_allow_html=True)
+
+        with col_seguro:
+            seguro = bool(jugador["jugador_seguro"])
+
+            c_sello, c_info = st.columns([2, 1])
+            with c_sello:
+                st.markdown(
+                    "<div style='font-size:13px; font-weight:600; white-space:nowrap; padding-top:10px;'>"
+                    "Jugador Seguro:</div>",
+                    unsafe_allow_html=True
+                )
+            with c_info:
+                if st.button("ℹ️", key="btn_seguro"):
+                    modal_jugador_seguro()
+
+            st.markdown(
+                f"<div style='font-size:34px; text-align:center; line-height:1.2;'>"
+                f"{'✅' if seguro else '❌'}</div>",
+                unsafe_allow_html=True
+            )
+
     st.divider()
 
+    # Las tres secciones son el RETRATO del jugador: comunes a los tres perfiles, para poder
+    # ver lo que su nota NO mide. Sobre esa base común, cada perfil añade la métrica suya que
+    # no estaba en ninguna sección — la del regateador pesa 50, la mitad de su nota.
+    # Podadas por duplicar a otra de su misma sección: "Pases Totales" (0,99 con Pases
+    # Acertados) y "Tiros a Puerta" (0,95 con Tiros). Las tarjetas se quedan aunque la mayoría
+    # tenga 0: ahí la información está en los pocos que NO lo tienen (13 con roja).
+    #
+    # EL NÚMERO GRANDE ES EL BRUTO, con el por 90 debajo en gris. Ninguno de los dos sobra:
+    # 15 de los 16 conteos de estas secciones correlacionan >=0,53 con los minutos jugados
+    # (pases_acertados 0,87; pases_ultimo_tercio 0,83; pases_clave 0,79), así que el bruto
+    # solo invita a comparar mal. Pero si se deja SOLO el por 90, no queda un sitio en todo
+    # el dashboard donde ver lo que el jugador ha hecho de verdad: el radar es percentil,
+    # la nota es percentil y la tabla del Tab 1 ya va por 90. El hecho vive aquí.
+    EXTRA_PERFIL = {
+        "REGATEADOR":  ("CREACIÓN",  "Regates Intentados", "regates_intentados"),
+        "FINALIZADOR": ("OFENSIVAS", "% Tiros a Puerta",   "porcentaje_tiros_a_puerta"),
+        "CREADOR":     ("OFENSIVAS", "% Pases Clave",      "porcentaje_pases_clave"),
+    }
+
+    def _bruto(etiqueta, columna):
+        """Conteo: el bruto grande y su por 90 debajo, en gris (delta_color='off')."""
+        p90_col = f"{columna}_por_90"
+        p90 = jugador[p90_col] if p90_col in jugador.index else jugador[columna] / jugador["minutos_jugados"] * 90
+        return (etiqueta, int(jugador[columna]), f"{p90:.2f} /90")
+
+    def _pct(etiqueta, columna):
+        """Porcentaje: ya es un ratio, no se acumula con los minutos. Sin por 90."""
+        return (etiqueta, f"{jugador[columna]:.1f}%", None)
+
+    def _pinta(metricas, por_fila=4):
+        """Reparte en filas, para que el número de columnas no dependa del perfil."""
+        for i in range(0, len(metricas), por_fila):
+            for col, (etiqueta, valor, delta) in zip(st.columns(por_fila), metricas[i:i + por_fila]):
+                col.metric(etiqueta, valor, delta=delta, delta_color="off")
+
+    def _con_extra(seccion, metricas):
+        extra = EXTRA_PERFIL.get(perfil)
+        if extra and extra[0] == seccion:
+            _, etiqueta, columna = extra
+            metricas = metricas + [_pct(etiqueta, columna) if columna.startswith("porcentaje_")
+                                   else _bruto(etiqueta, columna)]
+        return metricas
+
     st.subheader("Estadísticas Ofensivas")
-    o1, o2, o3, o4 = st.columns(4)
-    o1.metric("Goles",                          int(jugador["goles"]))
-    o2.metric("Asistencias",                    int(jugador["asistencias"]))
-    o3.metric("Tiros",                          int(jugador["tiros_totales"]))
-    o4.metric("G + A por 90 Min",               f"{(int(jugador['goles']) + int(jugador['asistencias'])) / int(jugador['minutos_jugados']) * 90:.2f}")
-    o4, o5, o6 = st.columns(3)
-    o4.metric("Tiros a Puerta",                 int(jugador["tiros_a_puerta"]))
-    o5.metric("Grandes Oport. Creadas",         int(jugador["grandes_ocasiones_creadas"]))
-    o6.metric("Grandes Oport. Falladas",        int(jugador["grandes_ocasiones_falladas"]))
+    _pinta(_con_extra("OFENSIVAS", [
+        _bruto("Goles",                   "goles"),
+        _bruto("Asistencias",             "asistencias"),
+        _bruto("Tiros",                   "tiros_totales"),
+        ("G + A por 90 Min",
+         f"{(int(jugador['goles']) + int(jugador['asistencias'])) / int(jugador['minutos_jugados']) * 90:.2f}",
+         None),
+        _bruto("Grandes Oport. Creadas",  "grandes_ocasiones_creadas"),
+        _bruto("Grandes Oport. Falladas", "grandes_ocasiones_falladas"),
+    ]))
 
     st.divider()
 
     st.subheader("Creación y Conducción")
-    c1, c2, c3, c4 = st.columns(4)
-    c1.metric("Pases Clave",                    int(jugador["pases_clave"]))
-    c2.metric("Pases Último Tercio",            int(jugador["pases_ultimo_tercio"]))
-    c3.metric("Pases Totales",                  int(jugador["pases_totales"]))
-    c4.metric("Pases Acertados",                int(jugador["pases_acertados"]))
-    c5, c6, c7, c8 = st.columns(4)
-    c5.metric("% Pases Acertados",              f"{jugador['porcentaje_pases_acertados']:.1f}%")
-    c6.metric("Regates Exitosos",               int(jugador["regates_exitosos"]))
-    c7.metric("% Regates Exitosos",             f"{jugador['porcentaje_regates_exitosos']:.1f}%")
-    c8.metric("Pérdidas de Balón",              int(jugador["perdidas_de_balon"]))
+    _pinta(_con_extra("CREACIÓN", [
+        _bruto("Pases Clave",         "pases_clave"),
+        _bruto("Pases Último Tercio", "pases_ultimo_tercio"),
+        _bruto("Pases Acertados",     "pases_acertados"),
+        _pct("% Pases Acertados",     "porcentaje_pases_acertados"),
+        _bruto("Regates Exitosos",    "regates_exitosos"),
+        _pct("% Regates Exitosos",    "porcentaje_regates_exitosos"),
+        _bruto("Pérdidas de Balón",   "perdidas_de_balon"),
+    ]))
 
     st.divider()
 
     st.subheader("Trabajo Defensivo")
-    d1, d2, d3, d4, d5 = st.columns(5)
-    d1.metric("Intercepciones",                 int(jugador["intercepciones"]))
-    d2.metric("Entradas",                       int(jugador["entradas"]))
-    d3.metric("Duelos Aéreos Perdidos",         int(jugador["duelos_aereos_perdidos"]))
-    d4.metric("Tarjetas Amarillas",             int(jugador["tarjetas_amarillas"]))
-    d5.metric("Tarjetas Rojas",                 int(jugador["tarjetas_rojas"]))
+    _pinta([
+        _bruto("Intercepciones",         "intercepciones"),
+        _bruto("Entradas",               "entradas"),
+        _bruto("Duelos Aéreos Perdidos", "duelos_aereos_perdidos"),
+        _bruto("Tarjetas Amarillas",     "tarjetas_amarillas"),
+        _bruto("Tarjetas Rojas",         "tarjetas_rojas"),
+    ], por_fila=5)
 
 
 # === TAB 3: COMPARATIVA ===
@@ -487,8 +656,8 @@ with tabs[2]:
     # Multiselect para elegir jugadores a comparar
     jugadores_seleccionados = st.multiselect(
         "Seleccionar jugadores (máx. 2)",
-        options=df["nombre"].tolist(),
-        default=df["nombre"].iloc[0],
+        options=df_filtros["nombre"].tolist(),
+        default=df_filtros["nombre"].iloc[0],
         max_selections=2        
     )
     
@@ -498,7 +667,7 @@ with tabs[2]:
         st.warning("Por favor selecciona al menos un jugador para analizar")
     else:
         # Filtrar datos de los jugadores seleccionados
-        datos_jugadores =  df[df["nombre"].isin(jugadores_seleccionados)]
+        datos_jugadores =  df_filtros[df_filtros["nombre"].isin(jugadores_seleccionados)]
         
         # Comparativa radar
         st.subheader("Comparativa de Perfiles")
@@ -509,20 +678,22 @@ with tabs[2]:
 
         jugador1 = datos_jugadores.iloc[0]
         jugador2 = datos_jugadores.iloc[1] if len(datos_jugadores) > 1 else None
-        color1 = COLORES_NIVEL[umbrales_puntuacion(jugador1['Puntuacion'])]
-        color2 = COLORES_NIVEL[umbrales_puntuacion(jugador2['Puntuacion'])] if jugador2 is not None else None
+        color1 = COLORES_NIVEL[umbrales_puntuacion(jugador1[perfil])]
+        color2 = COLORES_NIVEL[umbrales_puntuacion(jugador2[perfil])] if jugador2 is not None else None
         with col_radar_comparativo:
 
             fig = go.Figure()
 
             st.subheader("Radar Jugadores:")
+            ejes = ejes_radar(perfil)
+            st.caption("Cada eje es el **percentil** dentro de los 84 extremos del pool, no el valor de la métrica.")
             for i, (_, jugador) in enumerate(datos_jugadores.iterrows()):
-                values = calcular_percentiles(jugador, df_ref)
-                color = COLORES_NIVEL[umbrales_puntuacion(jugador['Puntuacion'])]
+                values = calcular_percentiles(jugador, df, ejes)
+                color = COLORES_NIVEL[umbrales_puntuacion(jugador[perfil])]
 
                 fig.add_trace(go.Scatterpolar(
                     r=values,
-                    theta=variables_radar,
+                    theta=[etiqueta for _, etiqueta in ejes],
                     fill='toself',
                     name=jugador["nombre"],
                     line=dict(color=color['border']),
@@ -549,9 +720,9 @@ with tabs[2]:
                 tabla.add_trace(go.Table(
                     header=dict(values=[jugador1["nombre"], "Métrica", jugador2["nombre"]],line=dict(width=0),font=dict(size=15)),
                     cells=dict(values=[
-                        [f"<b>{jugador1[v]}</b>" for v in variables_radar],
-                        [TABLA_COMPARADOR_JUGADORES[var] for var in variables_radar],
-                        [f"<b>{jugador2[v]}</b>" for v in variables_radar],
+                        [f"<b>{jugador1[c]:.2f}</b>" for c, _ in ejes],
+                        [etiqueta for _, etiqueta in ejes],
+                        [f"<b>{jugador2[c]:.2f}</b>" for c, _ in ejes],
                     ],
                     font=dict(size=16, color=[color1['border'], 'black', color2['border']]),
                     fill_color='white',
@@ -561,20 +732,18 @@ with tabs[2]:
                 tabla.update_layout(margin=dict(t=0, b=0, l=0, r=0), height=390)
 
                 st.plotly_chart(tabla, use_container_width=True)
-                st.markdown(f"""
-                <div style="margin-top:0; padding:0;">
-                    <p style="margin:0; font-weight:600; font-size:16px;">Puntuación:</p>
-                    <div style="display:flex; justify-content:space-around; margin-top:4px;">
-                        <span style="font-size:38px;  color:{color1['puntuacion']};">{jugador1['Puntuacion']:.2f}</span>
-                        <span style="font-size:38px; color:{color2['puntuacion']};">{jugador2['Puntuacion']:.2f}</span>
-                    </div>
-                </div>
-                """, unsafe_allow_html=True)
+                col_j1, col_j2 = st.columns([1, 1])
+                with col_j1:
+                    nota_y_sello(jugador1, color1, perfil)
+                with col_j2:
+                    nota_y_sello(jugador2, color2, perfil)
 
             else:
+                nota_y_sello(jugador1, color1, perfil)
+
                 col_m1, col_m2 = st.columns(2)
-                for i, var in enumerate(variables_radar):
-                    col = col_m1 if i < 4 else col_m2
+                for i, (col_metrica, etiqueta) in enumerate(ejes):
+                    col = col_m1 if i < 3 else col_m2
                     with col:
-                        st.metric(TABLA_COMPARADOR_JUGADORES[var], int(jugador1[var]))
+                        st.metric(etiqueta, f"{jugador1[col_metrica]:.2f}")
                 
