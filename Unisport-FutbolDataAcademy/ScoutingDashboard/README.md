@@ -39,11 +39,21 @@ Los scripts `exploracion_inicial.py`, `frontera_metricas_generacion_de_peligro.p
 
 ## Dashboard
 
-Un selector de **perfil** y otro de **tramo de nota** viven fuera de las pestañas: las tres comparten la misma selección.
+Un selector de **perfil** y otro de **tramo de nota** viven fuera de las pestañas: los tres primeros tabs comparten la misma selección; el cuarto no los usa.
 
 - **Tab 1 — Resumen general:** medias del perfil elegido, distribución por pie dominante y listado de extremos con su nota, sus minutos y el sello
 - **Tab 2 — Análisis individual:** radar de seis ejes (tres comunes a todo extremo y tres del perfil activo), ficha del jugador, y sus estadísticas con el valor bruto y el por 90 juntos
 - **Tab 3 — Comparativa:** dos jugadores sobre los mismos ejes, tabla enfrentada y la nota y el sello de cada uno
+- **Tab 4 — Recomendaciones:** ocho extremos con su informe. Cuatro **por nivel**, sin mirar el precio, para enseñar el techo real de la categoría; cuatro **por oportunidad**, donde el mercado les pone menos de lo que rinden
+
+### El apartado de recomendaciones
+
+Un dashboard de scouting no está terminado hasta que dice a quién ficharía el analista: un director deportivo no ficha por un 86,43. La selección y los informes son **criterio del analista**, no salida del cálculo, y van firmados como tales.
+
+La lista de candidatos sale de una **discrepancia entre dos ejes**: percentil de nota menos percentil de valor de mercado, los dos dentro del mismo pool. No dice "te lo puedes permitir" —eso daría por supuesto un presupuesto que nadie ha declarado, y lo que es caro para un club es calderilla para otro— sino **"el mercado le pone menos de lo que rinde"**, que es cierto lo lea quien lo lea. Salen 22 de 83 por condición, nunca cortando por número de filas.
+
+El único umbral del apartado, un mínimo de 900 minutos, está **medido y no elegido a ojo**: es el codo donde la dispersión por franja deja de bajar, y por encima lo que queda ya no es ruido de muestreo sino diferencia real de talento.
+
 
 Los números del radar son **percentiles** dentro de los 84, y las etiquetas lo dicen. Dos botones de información explican en pantalla cómo se calcula la nota del perfil activo —con sus pesos— y qué es un jugador seguro.
 
