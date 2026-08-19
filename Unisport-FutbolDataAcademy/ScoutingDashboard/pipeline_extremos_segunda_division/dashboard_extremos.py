@@ -17,7 +17,13 @@ st.set_page_config(
 )
 
 BASE = os.path.join(os.path.dirname(__file__), "..", "dataset_extremos_perfiles.csv")
+RECOMENDADOS = os.path.join(os.path.dirname(__file__), "..", "dataset_recomendados.csv")
+INFORMES = os.path.join(os.path.dirname(__file__), "..", "informes_recomendados.csv")
+
 df = pd.read_csv(BASE)
+# Los 8 del apartado de recomendaciones, con su texto pegado al lado. Los produce
+# analisis_posicion_extremo.py; aquí solo se leen.
+df_reco = pd.read_csv(RECOMENDADOS).merge(pd.read_csv(INFORMES), on="nombre", how="left")
 
 
 
@@ -160,7 +166,7 @@ def nota_y_sello(jugador, color, perfil):
         )
         st.markdown(
             f"<div style='font-size:34px; text-align:center; line-height:1.2;'>"
-            f"{'✅' if bool(jugador['jugador_seguro']) else '❌'}</div>",
+            f"{'🛡️' if bool(jugador['jugador_seguro']) else '❌'}</div>",
             unsafe_allow_html=True
         )
 
@@ -357,7 +363,7 @@ nota   = st.segmented_control("Nota", list(NOTAS), default="> 70") or "> 70"
 minimo, maximo = NOTAS[nota]
 df_filtros = df[(df[perfil] >= minimo) & (df[perfil] < maximo)]
 
-tabs = st.tabs(["Resumen General", "Análisis Individual", "Comparativa"])
+tabs = st.tabs(["Resumen General", "Análisis Individual", "Comparativa", "Recomendaciones"])
 
 # === TAB 1: RESUMEN GENERAL ===
 with tabs[0]:
@@ -416,8 +422,8 @@ with tabs[0]:
         "Pases Clave por 90": df_filtros["pases_clave_por_90"].round(2),
         "Pérdidas por 90": df_filtros["perdidas_de_balon_por_90"].round(2),
         "Pases Acertados %": df_filtros["porcentaje_pases_acertados"].round(1),
-        # mismo lenguaje visual que la ficha del Tab 2: check verde / aspa roja
-        "Jugador Seguro": df_filtros["jugador_seguro"].map({True: "✅", False: "❌"}),
+        # mismo lenguaje visual que la ficha del Tab 2: escudo / aspa roja
+        "Jugador Seguro": df_filtros["jugador_seguro"].map({True: "🛡️", False: "❌"}),
         "Nota": df_filtros[perfil],
     })
 
@@ -563,7 +569,7 @@ with tabs[1]:
 
             st.markdown(
                 f"<div style='font-size:34px; text-align:center; line-height:1.2;'>"
-                f"{'✅' if seguro else '❌'}</div>",
+                f"{'🛡️' if seguro else '❌'}</div>",
                 unsafe_allow_html=True
             )
 
@@ -746,4 +752,110 @@ with tabs[2]:
                     col = col_m1 if i < 3 else col_m2
                     with col:
                         st.metric(etiqueta, f"{jugador1[col_metrica]:.2f}")
-                
+
+
+st.markdown("""<style>
+/* La tarjeta es el stVerticalBlock que lleva el marcador reco-card como hijo directo.
+   El ">" es imprescindible: sin él, :has() alcanzaría también a los bloques de arriba. */
+div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] span.reco-card) {
+    position: relative;
+    cursor: pointer;
+    transition: border-color .15s ease, box-shadow .15s ease;
+}
+div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] span.reco-card):hover {
+    border-color: rgba(120,160,255,.85);
+    box-shadow: 0 0 0 2px rgba(120,160,255,.25);
+}
+/* El botón con clave reco_card_* se estira invisible sobre toda la tarjeta: el clic
+   vale en cualquier punto. Streamlit sella la clave del widget como clase st-key-*. */
+div[data-testid="stElementContainer"][class*="st-key-reco_card_"] {
+    position: absolute; top: 0; left: 0; z-index: 5; margin: 0; padding: 0;
+    width: 100% !important; height: 100% !important;
+}
+div[data-testid="stElementContainer"][class*="st-key-reco_card_"] div[data-testid="stButton"],
+div[data-testid="stElementContainer"][class*="st-key-reco_card_"] button {
+    width: 100%; height: 100%; opacity: 0; border: none; background: transparent;
+}
+</style>""", unsafe_allow_html=True)
+
+
+@st.dialog("Informe del jugador")
+def modal_informe_reco(j):
+    sello = " · 🛡️ Jugador seguro" if j["jugador_seguro"] else ""
+    st.markdown(f"**{j['nombre']}** · {j['equipo']} · {j['edad']} · {j['perfil'].capitalize()}{sello}")
+    st.write(j["informe"])
+
+
+# === TAB 4: RECOMENDACIONES ===
+# Selección FIJA de 8 jugadores: no la filtran los selectores de perfil y nota de
+# arriba, porque es una opinión firmada y no una consulta.
+with tabs[3]:
+    st.markdown(
+        "Ocho extremos sobre los 83 del pool. **Cuatro por nivel**, sin "
+        "mirar el precio, para enseñar cuál es el techo real de la categoría. **Cuatro "
+        "por oportunidad**, donde el mercado les pone menos de lo que rinden. "
+        "La selección y los informes son criterio del analista, no salida del cálculo."
+    )
+
+    with st.container(border=True):
+        st.markdown("##### Qué es la discrepancia")
+        st.markdown(
+            "Se ordena a los 83 extremos **dos veces**: una por su nota de perfil y otra "
+            "por su valor de mercado. Cada jugador recibe así dos posiciones de 0 a 100, "
+            "y la discrepancia es la **resta** entre ambas."
+        )
+        st.markdown(
+            "- **Positiva** — rinde por encima del puesto que le da el mercado. "
+            "Awer Mabil marca **+77**: produce como el 11% mejor de la categoría y cuesta "
+            "como el 12% más barato.\n"
+            "- **Cero** — el precio coincide con el rendimiento. Iñigo Vicente da **0**: "
+            "vale 5,6 millones y rinde en el percentil 98. No es un hallazgo, es un precio justo.\n"
+            "- **Negativa** — no significa mal jugador, significa que el mercado le paga "
+            "por cosas que este análisis no mide: proyección, edad o recorrido de reventa."
+        )
+        st.caption(
+            "Se mide en percentiles del propio pool y no en euros a propósito: un umbral "
+            "en euros daría por supuesto un presupuesto concreto, y lo que es caro para un "
+            "club es calderilla para otro. Así el dato vale lo lea quien lo lea."
+        )
+
+    BLOQUES = [
+        ("destacado",   "Los mejores de la categoría",
+         "Los cuatro de más nivel del pool, sin filtro de precio ni de contrato."),
+        ("oportunidad", "Las oportunidades",
+         "Rinden por encima de lo que el mercado les paga."),
+    ]
+
+    for clave, titulo, subtitulo in BLOQUES:
+        st.divider()
+        st.subheader(titulo)
+        st.caption(subtitulo)
+
+        bloque = df_reco[df_reco["bloque"] == clave].sort_values("nota", ascending=False)
+
+        # De dos en dos: se recorre la lista a saltos de 2 y cada pareja va en su fila.
+        for inicio in range(0, len(bloque), 2):
+            fila = st.columns(2)
+            for hueco, (_, j) in zip(fila, bloque.iloc[inicio:inicio + 2].iterrows()):
+                with hueco, st.container(border=True):
+                    st.markdown('<span class="reco-card"></span>', unsafe_allow_html=True)
+                    sello = " · 🛡️ Jugador seguro" if j["jugador_seguro"] else ""
+                    st.markdown(f"### {j['nombre']}")
+                    st.caption(f"{j['equipo']} · {j['edad']} · {j['perfil'].capitalize()}{sello}")
+
+                    m1, m2, m3, m4 = st.columns(4)
+                    with m1:
+                        st.metric("Nota", f"{j['nota']:.2f}")
+                    with m2:
+                        st.metric("Minutos", f"{int(j['minutos_jugados']):,}".replace(",", "."))
+                    with m3:
+                        st.metric("Valor", j["valor_mercado_fmt"])
+                    with m4:
+                        st.metric("Discrepancia", f"{int(j['discrepancia']):+d}")
+
+                    if st.button("Ver informe", key=f"reco_{j['id']}"):
+                        modal_informe_reco(j)
+
+                    # Mismo destino, invisible y estirado por CSS sobre la tarjeta entera.
+                    if st.button("Ver informe", key=f"reco_card_{j['id']}"):
+                        modal_informe_reco(j)
