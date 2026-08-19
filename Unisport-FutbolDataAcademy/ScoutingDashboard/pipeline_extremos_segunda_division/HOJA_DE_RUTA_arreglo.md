@@ -1,5 +1,28 @@
 # Hoja de ruta — arreglo del Scouting Dashboard
 
+> [!éxito] ARREGLO TERMINADO — 2026-08-19
+> **Este documento se cerró el 19/08 y no se mantiene.** Dejó de actualizarse el 02/08 mientras
+> el trabajo continuaba, así que sus casillas vacías NO eran tareas pendientes: estaban hechas.
+> Verificadas una a una contra el código al cerrarlo.
+>
+> - **Apartado 4** — columnas derivadas, percentiles antes de ponderar y pesos de 100: 13/08.
+> - **Apartado 5** — `clasificacion_por_perfiles.py` escrito de cero y baseline de dominio corrido
+>   (REG 0,14 · FIN 0,22 · CRE 0,15, no es detector de precio): 13/08.
+> - **Apartado 6** — `BASE` reapuntado, `valor_mercado_fmt`, Tab 3 rehecho sobre perfiles, el modal
+>   que confesaba el sesgo sustituido por la explicación de los pesos, radar y notas con la misma
+>   vara, umbrales de color declarados en 50/70, minutos al lado del percentil, y el
+>   `UnboundLocalError` de `umbrales_puntuacion` arreglado con una rama `else`: 15-19/08.
+>
+> **Dos puntos se DESCARTARON en vez de hacerse**, marcados `[~]` en el texto:
+> 1. *El corte de muestra de los tres porcentajes* — lo cubren el filtro de 450 minutos aguas
+>    arriba y el sello `jugador_seguro`, sin un umbral extra por métrica.
+> 2. *El umbral de etiqueta* — **no hay etiqueta**. Cada jugador lleva las tres notas a la vez,
+>    así que la pregunta de "a partir de qué nota es regateador" dejó de existir.
+>
+> **Lo que vino después y este documento no contempla:** el apartado de recomendaciones (19/08),
+> con `analisis_posicion_extremo.py` y el cuarto tab. Está en el README y en la página del
+> proyecto (`02_Wiki/projects/david-proyecto-scouting-dashboard.md`).
+
 > Aplicar la metodología de proyectos de datos (`CLAUDE.md`, fases 3-6) sobre el pipeline
 > de extremos, **en orden de ejecución**. David implementa; la metodología pregunta.
 > Diagnóstico medido el 16/07 y reconfirmado en el código el 23/07: el modelo es **circular**.
@@ -125,23 +148,23 @@ y la columna `GeneradorDePeligro`. Probablemente también cambie de nombre.
       **En el creador, `pases_clave_por_90` se mantiene por decisión declarada de David** pese al
       0.76: al pasar a percentiles el producto **no** es reconstruible desde sus factores, y premia
       específicamente a quien combina volumen y calidad en vez de dejar que uno compense al otro.
-- [ ] **Crear las tres columnas nuevas:** `regates_intentados_por_90`, `porcentaje_tiros_a_puerta`
+- [x] **Crear las tres columnas nuevas:** `regates_intentados_por_90`, `porcentaje_tiros_a_puerta`
       (`tiros_a_puerta / tiros_totales`), `porcentaje_pases_clave` (`pases_clave / pases_totales`).
-- [ ] **Pasar cada columna a percentil ANTES de ponderar.** Sin esto los pesos no pintan nada:
+- [x] **Pasar cada columna a percentil ANTES de ponderar.** Sin esto los pesos no pintan nada:
       `pases_totales` va de 57 a 1927 y `goles_por_90` de 0 a 0,7 — la de mayor rango decide sola.
       - *Caza (regla transversal 4):* percentil antes que z-score en scouting.
-- [ ] **Los pesos.** 100 puntos dentro de cada perfil, **mismo total en los tres**: como las tres
+- [x] **Los pesos.** 100 puntos dentro de cada perfil, **mismo total en los tres**: como las tres
       notas se comparan entre sí para colgar la etiqueta, un perfil que reparta más peso daría notas
       más altas por construcción y saldrían todos de ese perfil.
       - *Caza (Fase 5):* si no hay modelo, ¿cómo he elegido las métricas y con qué pesos? Sin target
         no hay feature importance: la elección **es** el análisis, y hay que escribir el porqué.
-- [ ] **El corte de muestra de los tres porcentajes.** El `regates_intentados >= 60` se eligió sobre
+- [~] **DESCARTADO (13/08). El corte de muestra de los tres porcentajes.** El `regates_intentados >= 60` se eligió sobre
       una subpoblación ya filtrada; **sobre los 84 se lleva 51**. Hay que redecidirlo, y hacer el
       equivalente para tiros y para pases.
       - *Medido (02/08):* **Diego Bri lidera dos porcentajes distintos con muestra corta** — 70,6% de
         tiros a puerta sobre **17 tiros**, y 61,5% de regates sobre 26. El filtro de 450 no lo tapa.
       - *Caza (Fase 5):* ¿todas mis estimaciones tienen la misma fiabilidad?
-- [ ] **El umbral de etiqueta.** A partir de qué nota un extremo "es" regateador, y si puede llevar dos.
+- [~] **DESCARTADO (13/08) — no hay etiqueta. El umbral de etiqueta.** A partir de qué nota un extremo "es" regateador, y si puede llevar dos.
       - *Caza (regla transversal 1):* todo umbral se declara, y se sabe si sale de la distribución o de ti.
 
 ### Hallazgos medidos el 02/08 sobre los 84
@@ -177,12 +200,12 @@ Ya no modela nada, así que ni el nombre se queda: pasa a ser algo como
 huérfanos que leía se neutralizaron como `HUERFANO_*.bak` — antes corría **sin error** sobre datos
 muertos, que es el fallo silencioso que había que convertir en ruidoso.
 
-- [ ] **Escribirlo de cero:** leer `dataset_extremos_filtrado.csv` (los 84), crear las tres columnas
+- [x] **Escribirlo de cero:** leer `dataset_extremos_filtrado.csv` (los 84), crear las tres columnas
       nuevas, pasar todo a percentil, aplicar los pesos, sacar las tres notas y colgar la etiqueta.
-- [ ] **Validar por NOMBRES, no por número.** Un sistema de perfiles no tiene accuracy: no predice,
+- [x] **Validar por NOMBRES, no por número.** Un sistema de perfiles no tiene accuracy: no predice,
       no puede equivocarse. Su única auditoría es que los umbrales estén declarados y que los
       jugadores que caen en cada perfil sean gente que, viendo Segunda, dirías que se parece.
-- [ ] **Correr el baseline de dominio**, que ahora sí se puede: `corr(nota, valor_mercado)`. ~0.9 →
+- [x] **Correr el baseline de dominio**, que ahora sí se puede: `corr(nota, valor_mercado)`. ~0.9 →
       eres un detector de precio con pasos extra; ~0.3 → dices algo que el mercado no dice. **Los
       altos en tu nota y baratos en Transfermarkt son la shortlist.** Llevas desde el 25/07 con el
       gate montado (`valor_mercado` numérico) y sin haberlo usado nunca.
@@ -199,18 +222,18 @@ muertos, que es el fallo silencioso que había que convertir en ruidoso.
 
 ## 6 · `dashboard_extremos.py`
 
-- [ ] **Reapuntar `BASE` y `df_ref`** al CSV que salga del apartado 5.
-- [ ] **`valor_mercado` → `valor_mercado_fmt`** (`:22` del script viejo lo dejó numérico a propósito).
-- [ ] **El Tab 3 enseña "resultados del modelo ML"** y ya no habrá modelo. Rehacerlo sobre las tres
+- [x] **Reapuntar `BASE` y `df_ref`** al CSV que salga del apartado 5.
+- [x] **`valor_mercado` → `valor_mercado_fmt`** (`:22` del script viejo lo dejó numérico a propósito).
+- [x] **El Tab 3 enseña "resultados del modelo ML"** y ya no habrá modelo. Rehacerlo sobre las tres
       notas de perfil.
-- [ ] **El modal confiesa el sesgo** (`:272-284`): lista "Minutos jugados" como criterio positivo.
+- [x] **El modal confiesa el sesgo** (`:272-284`): lista "Minutos jugados" como criterio positivo.
       Actualizar qué se le dice al club ahora que los minutos **no puntúan**.
-- [ ] **Radar y notas con la misma vara.** `calcular_percentiles` normaliza por 90 (`:307-311`);
+- [x] **Radar y notas con la misma vara.** `calcular_percentiles` normaliza por 90 (`:307-311`);
       que el radar y los perfiles rankeen igual.
-- [ ] **Umbrales de color 5.6 y 4** (`:264-267`) sin declarar.
-- [ ] **Bug latente** ahí mismo: `umbrales_puntuacion` da `UnboundLocalError` si `Puntuacion < 4` y
+- [x] **Umbrales de color 5.6 y 4** (`:264-267`) sin declarar.
+- [x] **Bug latente** ahí mismo: `umbrales_puntuacion` da `UnboundLocalError` si `Puntuacion < 4` y
       no-NaN. Hoy no revienta solo por el filtro previo. Añadir rama `else`.
-- [ ] **"Minutos al lado del número"** en el listado general (tab 1) y en el radar. En la ficha
+- [x] **"Minutos al lado del número"** en el listado general (tab 1) y en el radar. En la ficha
       individual ya está (`:511`).
 
 ---
