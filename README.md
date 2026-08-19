@@ -67,12 +67,13 @@ Pipeline con datos open-data de StatsBomb: generación de métricas, filtro sub-
 
 ### Scouting Dashboard Segunda División
 
-Análisis de la posición de extremo en Segunda División española: extracción de métricas vía Sofascore API y pipeline de tres scripts (limpieza, contextualización y filtrado por muestra, clasificación por perfiles). Cada extremo recibe tres notas de 0 a 100 —regateador, finalizador y creador— construidas como índices de percentiles con pesos declarados que suman 100, más un sello de seguridad en el pase. Dashboard Streamlit con radares de seis ejes por perfil, comparativa entre jugadores y explicación en pantalla de cómo se calcula cada nota. Desplegado en producción con Docker en un VPS.
+Análisis de la posición de extremo en Segunda División española: extracción de métricas vía Sofascore API y pipeline de tres scripts (limpieza, contextualización y filtrado por muestra, clasificación por perfiles). Cada extremo recibe tres notas de 0 a 100 —regateador, finalizador y creador— construidas como índices de percentiles con pesos declarados que suman 100, más un sello de seguridad en el pase. Dashboard Streamlit con radares de seis ejes por perfil, comparativa entre jugadores y explicación en pantalla de cómo se calcula cada nota. **Cierra en un apartado de recomendaciones**: ocho extremos con su informe, cuatro elegidos por nivel y cuatro por estar infravalorados respecto a lo que rinden. Desplegado en producción con Docker en un VPS.
 
 | | |
 |---|---|
 | ![Resumen general por perfil](assets/scouting_2026_08_resumen.png) | ![Análisis individual: radar por perfil, nota y sello](assets/scouting_2026_08_individual.png) |
 | ![Comparativa entre jugadores](assets/scouting_2026_08_comparativa.png) | ![Estadísticas del jugador: valor bruto y por 90](assets/scouting_2026_08_estadisticas.png) |
+| ![Recomendaciones: los mejores de la categoría y las oportunidades](assets/scouting_2026_08_recomendaciones.png) | ![Informe del jugador en modal](assets/scouting_2026_08_informe.png) |
 
 > 🔗 <a href="https://scouting.davidvh.com" target="_blank">Ver dashboard en vivo</a>
 
