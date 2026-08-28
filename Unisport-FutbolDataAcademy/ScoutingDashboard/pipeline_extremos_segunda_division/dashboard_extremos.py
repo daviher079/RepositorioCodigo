@@ -56,27 +56,10 @@ div[data-testid="stButton"] > button:hover {
 # OJO: estos números son una COPIA de los de clasificacion_por_perfiles.py, que es quien
 # calcula las notas de verdad. Si allí se mueve un peso y aquí no, el dashboard seguirá
 # explicando el viejo sin dar ningún error. Al tocar uno, tocar el otro.
-PESOS_PERFIL = {
-    "REGATEADOR": [
-        ("Regates intentados por 90",                    50, False),
-        ("% de regates exitosos",                        30, False),
-        ("Pérdidas de balón por 90",                     20, True),
-    ],
-    "FINALIZADOR": [
-        ("Goles por 90",                                 35, False),
-        ("Tiros totales por 90",                         25, False),
-        ("% de tiros a puerta",                          15, False),
-        ("Grandes ocasiones falladas por 90",            15, True),
-        ("Pérdidas de balón por 90",                     10, True),
-    ],
-    "CREADOR": [
-        ("Pases clave por 90",                           30, False),
-        ("Grandes ocasiones creadas por 90",             25, False),
-        ("% de pases clave",                             15, False),
-        ("Asistencias por 90",                           15, False),
-        ("Pérdidas de balón por 90",                     15, True),
-    ],
-}
+from perfiles_config import pesos_por_etiqueta
+
+# Los pesos viven en perfiles_config.py — unica fuente, compartida con el pipeline
+PESOS_PERFIL = pesos_por_etiqueta()
 
 
 @st.dialog("Cómo se calcula la nota")
@@ -350,7 +333,7 @@ def col_grafica_horizontal(df, perfil, TEXTO_VERTICAL_BARS):
             color_discrete_sequence=["#00CC96", "#FE0101"]
         )
         fig.update_layout(xaxis_tickangle=-45, xaxis_title="", legend_title="")
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width="stretch")
 
 PERFILES = ["CREADOR", "FINALIZADOR", "REGATEADOR"]
 NOTAS = {
@@ -401,7 +384,7 @@ with tabs[0]:
             title="Distribución por pie dominante",
             color_discrete_sequence=["#0052A3", "#0099E6", "#66CCFF"]
         )
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width="stretch")
 
     st.divider()
 
@@ -716,7 +699,7 @@ with tabs[2]:
             showlegend=True
             )
         
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, width="stretch")
        
 
         with col_tabla:
@@ -737,7 +720,7 @@ with tabs[2]:
                 )))
                 tabla.update_layout(margin=dict(t=0, b=0, l=0, r=0), height=390)
 
-                st.plotly_chart(tabla, use_container_width=True)
+                st.plotly_chart(tabla, width="stretch")
                 col_j1, col_j2 = st.columns([1, 1])
                 with col_j1:
                     nota_y_sello(jugador1, color1, perfil)

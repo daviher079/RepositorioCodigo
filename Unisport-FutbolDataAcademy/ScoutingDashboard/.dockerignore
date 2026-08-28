@@ -1,0 +1,15 @@
+# Basura de Python
+__pycache__/
+*.py[cod]
+.Python
+venv/
+.venv/
+
+# Artefactos que no ejecuta el contenedor
+*.png
+HOJA_DE_RUTA_arreglo.md
+
+# Sistema
+.DS_Store
+.git/
+.gitignore

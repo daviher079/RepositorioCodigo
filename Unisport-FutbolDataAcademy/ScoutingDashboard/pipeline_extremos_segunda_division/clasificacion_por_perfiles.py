@@ -4,27 +4,10 @@ import os
 BASE = os.path.join(os.path.dirname(__file__), "..", "dataset_extremos_filtrado.csv")
 OUTPUT = os.path.join(os.path.dirname(__file__), "..", "dataset_extremos_perfiles.csv")
 
-PESOS = {
-    'REGATEADOR': {
-        'regates_intentados_por_90_pctl':          50,
-        'porcentaje_regates_exitosos_pctl':        30,
-        'perdidas_de_balon_por_90_invertido':      20,
-    },
-    'FINALIZADOR': {
-        'goles_por_90_pctl':                       35,
-        'tiros_totales_por_90_pctl':               25,
-        'porcentaje_tiros_a_puerta_pctl':          15,
-        'grandes_ocasiones_falladas_por_90_invertido': 15,
-        'perdidas_de_balon_por_90_invertido':      10,
-    },
-    'CREADOR': {
-        'pases_clave_por_90_pctl':                 30,
-        'grandes_ocasiones_creadas_por_90_pctl':   25,
-        'porcentaje_pases_clave_pctl':             15,
-        'asistencias_por_90_pctl':                 15,
-        'perdidas_de_balon_por_90_invertido':      15,
-    },
-}
+from perfiles_config import pesos_por_columna
+
+# Los pesos viven en perfiles_config.py — unica fuente, compartida con el dashboard
+PESOS = pesos_por_columna()
 
 UMBRAL_PERDIDAS = 60.0   # percentil de pocas pérdidas
 UMBRAL_PASES = 75.0      # % de acierto real, NO percentil
