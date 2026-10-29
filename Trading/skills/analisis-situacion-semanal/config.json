@@ -1,0 +1,8 @@
+{
+  "carpeta_base": "~/Desktop/cartera/analisis semanal",
+  "kospi_soporte": {
+    "bajo": 5377,
+    "alto": 5439,
+    "origen": "cierres de las semanas del 27/03 y 03/04/2026, origen del último tramo al alza (lectura del gráfico, criterio de Cava). Lo actualiza David."
+  }
+}
