@@ -294,6 +294,10 @@ def texto_fed(D):
     else:
         frases.append(f"Para volver a viento a favor, el bono tiene que bajar del {num(disparo)}%. "
                       f"Faltan {num((f['bono'] - disparo) * 100, 0)} pb.")
+    frontera = ""
+    if f["casilla"] != "rojo" and f["recorte"] <= 0.5:
+        frontera = f"A {num(abs(mb - 1), 2)} puntos del corte: una revisión del PIB de esa cuantía cambia la casilla"
+        frases.append(frontera + ".")
     if f["hist"] is not None:
         frases.append(f"En la historia, en esta situación, el SPY ha caído más de un 10% en los 6 meses "
                       f"siguientes el {f['hist']}% de las veces.")
@@ -326,7 +330,7 @@ def texto_fed(D):
              else f"Viento a favor si el bono baja del {num(disparo)}%: faltan {num((f['bono'] - disparo) * 100, 0)} pb")
     p = panel("fed", {"viento a favor": "verde", "aviso": "naranja", "rojo": "rojo"}[f["casilla"]],
               f["casilla"].capitalize(), mb, f"{num(mb, 1, True)} puntos", 1,
-              [f"Margen del bono {num(mb, 1, True)} (corte 1)", falta])
+              [f"Margen del bono {num(mb, 1, True)} (corte 1)", falta, frontera])
     if f["casilla"] == "rojo":
         peor, mejor = None, "sale del rojo si el tipo oficial baja del PIB o el balance sube del −1%"
     elif f["casilla"] == "viento a favor":
