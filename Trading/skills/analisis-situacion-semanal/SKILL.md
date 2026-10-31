@@ -35,13 +35,24 @@ interpretes tú los números en el chat: enseña lo que dice el informe y para.
 5. **Si un número no coincide con TradingView**, no se da el informe por bueno: se busca la causa en el
    script (fuente, semana, EMA) antes de seguir.
 
+6. **Actualizar el dashboard** (vista rápida; el Word sigue siendo el detalle). El enlace es siempre el mismo:
+   https://claude.ai/artifact/XRnA8ugw3pKRFi8LZ9D1Ea
+
+   El script deja `filas.json` y `cabecera.json` en `~/.claude/skills/analisis-situacion-semanal/dashboard/`,
+   con las últimas 53 semanas. Para cada archivo: `Artifact` con `asset: true`, `url` y `file_path`, y después
+   `ArtifactData` `update` en `datasets/filas` y `datasets/cabecera` con `source` (`url` nueva) y
+   `updated` (`at` + `by`), usando el `if_version` leído. Luego borrar el asset anterior.
+   **Con `--sin-docx` no se generan esos archivos.** Relanzar el script reescribe el Word: si David ya ha
+   escrito sus conclusiones, no relanzarlo sin preguntarle.
+
 ## Qué calcula (resumen; el detalle está en la especificación)
 
 - Datos: Yahoo (`SPY HYG IEI GLD ^VIX ^MOVE ^TNX ^KS11 IWM`) y DBnomics (`FED/H15/RIFSPFF_N.B`,
   `FED/H41/RESPPA_N.WW`, `BEA/NIPA-T10105/A191RC-Q`). EMA 50 semanal sobre el cierre (no el ajustado).
 - Orden del informe: **lado de la Fed** (Fed, MOVE, HYG) → **Russell** (puente) → **lado de la bolsa**
   (SPY, SPY/GLD, VIX, KOSPI) → cuatro apartados vacíos para las conclusiones de David.
-- Cada fila: ficha · veredicto · recorrido (6 meses, 3, 1 y hoy) · qué ha cambiado · resumen con frases fijas por tramo.
+- Cada fila: ficha · veredicto · recorrido (6 meses, 3, 1 y hoy) · qué ha cambiado · semanas malas · para cambiar de tramo · resumen con frases fijas por tramo.
+- Tramos por nivel, tarde lo que tarde: Fed, MOVE, HYG, Russell, SPY, SPY/GLD. Por nivel y por semanas: VIX (3 semanas por encima de 20) y KOSPI (3 semanas o −5%).
 - Donde no hay corte medido, solo el número (distancia en pb, contadores, evolución de la distancia).
 - **Soporte del KOSPI**: valor fijo en `config.json`. Lo cambia David cuando el KOSPI haga una nueva base.
 

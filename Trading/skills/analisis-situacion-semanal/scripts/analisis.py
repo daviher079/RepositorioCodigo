@@ -15,6 +15,7 @@ Uso:
 """
 
 import argparse
+import copy
 import datetime as dt
 import json
 import math
@@ -29,6 +30,9 @@ AQUI = Path(__file__).resolve().parent
 CONFIG = json.loads((AQUI.parent / "config.json").read_text())
 MADRID = ZoneInfo("Europe/Madrid")
 UA = {"User-Agent": "Mozilla/5.0"}
+
+# Semanas hacia atrás que guarda el dashboard (el historial de cada tarjeta enseña 26).
+SEMANAS_DASHBOARD = 52
 
 # Desplazamientos del recorrido, en semanas.
 RECORRIDO = [("Hace 6 meses", 26), ("Hace 3 meses", 13), ("Hace 1 mes", 4), ("Hoy", 0)]
@@ -165,6 +169,13 @@ class Datos:
             fin = dt.date(y, 3 * q, 1) + pd.offsets.MonthEnd(0)
             self.pib.append((y, q, fin.date() if hasattr(fin, "date") else fin, v))
 
+    def en_semana(self, lunes):
+        """Los mismos datos, vistos como si la semana del informe fuese `lunes`."""
+        otro = copy.copy(self)
+        otro.lunes = pd.Timestamp(lunes)
+        otro.s = {k: s[s.index <= otro.lunes] for k, s in self.s.items()}
+        return otro
+
     def t(self, k, semanas_atras=0):
         """Posición de la semana objetivo (menos `semanas_atras`) en la serie k."""
         return len(self.s[k]) - 1 - semanas_atras
@@ -173,6 +184,27 @@ class Datos:
 # ---------------------------------------------------------------------------
 # Filas
 # ---------------------------------------------------------------------------
+
+def panel(id, color, etiqueta, valor, valor_txt, corte, lineas):
+    """Lo que enseña la tarjeta del dashboard. Sale de los mismos cálculos que el Word."""
+    return dict(id=id, color=color, etiqueta=etiqueta, valor=float(valor), valor_txt=valor_txt,
+                corte=corte, lineas=[x for x in lineas if x])
+
+
+def vecinos(x, cortes, tramos):
+    """Tramo y corte inmediatamente por debajo y por encima de x (cortes de menor a mayor)."""
+    i = sum(x >= c for c in cortes)
+    baja = (tramos[i - 1], cortes[i - 1]) if i > 0 else None
+    sube = (tramos[i + 1], cortes[i]) if i < len(cortes) else None
+    return baja, sube
+
+
+def texto_cambio(modo, uno, otro, etiquetas=("A peor", "A mejor"), extra=""):
+    """Qué falta para cambiar de tramo, en la unidad que manda en cada fila."""
+    a = uno or "ya está en el peor tramo"
+    b = otro or "ya está en el mejor tramo"
+    return f"{modo}. {etiquetas[0]}: {a}. {etiquetas[1]}: {b}." + (f" {extra}" if extra else "")
+
 
 def fila_fed(D, atras=0):
     lun = D.lunes - pd.Timedelta(weeks=atras)
@@ -290,7 +322,23 @@ def texto_fed(D):
     estado_ant = {"Casilla de la Fed": ant["casilla"]}
     extra = "PIB nuevo esta semana: " + ("sí (las cuentas cambian aunque el bono no se mueva)."
                                           if f["pib_trim"] != ant["pib_trim"] else "no.")
-    return dict(titulo="Fed", ficha=ficha, veredicto=veredicto, recorrido=recorrido,
+    falta = (f"Aviso si el bono pasa del {num(disparo)}%: faltan {num((disparo - f['bono']) * 100, 0)} pb" if mb >= 1
+             else f"Viento a favor si el bono baja del {num(disparo)}%: faltan {num((f['bono'] - disparo) * 100, 0)} pb")
+    p = panel("fed", {"viento a favor": "verde", "aviso": "naranja", "rojo": "rojo"}[f["casilla"]],
+              f["casilla"].capitalize(), mb, f"{num(mb, 1, True)} puntos", 1,
+              [f"Margen del bono {num(mb, 1, True)} (corte 1)", falta])
+    if f["casilla"] == "rojo":
+        peor, mejor = None, "sale del rojo si el tipo oficial baja del PIB o el balance sube del −1%"
+    elif f["casilla"] == "viento a favor":
+        peor = f"aviso si el bono pasa del {num(disparo)}% (faltan {num((disparo - f['bono']) * 100, 0)} pb)"
+        mejor = None
+    else:
+        peor = (f"rojo si el tipo oficial ({num(f['tipo'])}%) supera al PIB ({pct(f['pib'], 1, False)}) "
+                f"y el balance baja del −1% (hoy {pct(f['roc'], 2)})")
+        mejor = (f"viento a favor cuando el recorte en 6 meses baje de 0,5 puntos (hoy {num(f['recorte'])})" if f["recorte"] > 0.5
+                 else f"viento a favor si el bono baja del {num(disparo)}% (faltan {num((f['bono'] - disparo) * 100, 0)} pb)")
+    p["cambio"] = texto_cambio("Por nivel", peor, mejor)
+    return dict(titulo="Fed", panel=p, ficha=ficha, veredicto=veredicto, recorrido=recorrido,
                 estado=estado, estado_ant=estado_ant, extra=extra, resumen=" ".join(frases), datos=f)
 
 
@@ -347,7 +395,14 @@ def texto_move(D):
     recorrido = (["", *[n for n, _ in RECORRIDO]],
                  [["MOVE relativo", *[num(rel.iloc[t - a]) for _, a in RECORRIDO]],
                   ["Bono a 10 años", *[num(b.iloc[tb - a]) + "%" for _, a in RECORRIDO]]])
-    return dict(titulo="MOVE", ficha=ficha, veredicto=veredicto, recorrido=recorrido,
+    p = panel("move", {"calma": "verde", "normal": "verde", "tensión": "naranja", "tensión alta": "rojo"}[z],
+              z.capitalize(), r, num(r), 1.3,
+              [f"Cociente {num(r)} (corte 1,3)", f"{sem13} semanas por encima de 1,3" if sem13 else "",
+               f"Bono al {num(b.iloc[tb])}%"])
+    bajo, alto = vecinos(r, [0.9, 1.1, 1.3], ["calma", "normal", "tensión", "tensión alta"])
+    nivel = lambda c: f"(cociente {num(c, 1)}, MOVE {num(c * med.iloc[t], 1)})"
+    p["cambio"] = texto_cambio("Por nivel", alto and f"{alto[0]} si sube {nivel(alto[1])}", bajo and f"{bajo[0]} si baja {nivel(bajo[1])}")
+    return dict(titulo="MOVE", panel=p, ficha=ficha, veredicto=veredicto, recorrido=recorrido,
                 estado={"Zona del MOVE": z}, estado_ant={"Zona del MOVE": zona_move(rel.iloc[t - 1])},
                 resumen=" ".join(frases), datos=dict(rel=r, bono=b.iloc[tb]))
 
@@ -416,7 +471,20 @@ def texto_hyg(D):
     recorrido = (["", *[n for n, _ in RECORRIDO]],
                  [["Distancia del HYG", *[pct(d.iloc[t - a], 2) for _, a in RECORRIDO]],
                   ["Distancia del HYG/IEI", *[pct(die.iloc[ti - a], 2) for _, a in RECORRIDO]]])
-    return dict(titulo="HYG", ficha=ficha, veredicto=f"{lado.capitalize()} de su EMA, tramo {tr}",
+    p = panel("hyg", {"por encima": "verde", "0 a −2%": "naranja", "−2 a −8,6% (tipos)": "naranja",
+                      "−2 a −8,6% (crédito)": "rojo", "más de −8,6% (tipos)": "rojo", "más de −8,6% (crédito)": "rojo"}[tr],
+              "Por encima" if tr == "por encima" else f"Tramo {tr}", dd, pct(dd, 2), 0,
+              [f"{pct(dd, 2)} de su EMA", f"{sem} semanas {lado}",
+               f"HYG/IEI {'por encima' if ie_arriba else 'por debajo'}: {sie} semanas"])
+    bajo, alto = vecinos(dd, [-8.6, -2, 0], ["más de −8,6%", "−2 a −8,6%", "0 a −2%", "por encima"])
+    precio = lambda c: num(e.iloc[t] * (1 + c / 100))
+    causa = ""
+    if dd <= -2:
+        causa = (f"La causa pasa de {'tipos a crédito' if ie_arriba else 'crédito a tipos'} si el HYG/IEI cierra "
+                 f"{'bajo' if ie_arriba else 'sobre'} su EMA ({num(ema(ie).iloc[ti], 3)}).")
+    p["cambio"] = texto_cambio("Por nivel", bajo and f"{bajo[0]} si cierra bajo {precio(bajo[1])}",
+                               alto and f"{alto[0]} si cierra sobre {precio(alto[1])}", extra=causa)
+    return dict(titulo="HYG", panel=p, ficha=ficha, veredicto=f"{lado.capitalize()} de su EMA, tramo {tr}",
                 recorrido=recorrido, estado={"Tramo del HYG": tr}, estado_ant={"Tramo del HYG": tr_ant},
                 resumen=" ".join(frases), datos=dict(dist=dd, ie_arriba=ie_arriba, sem_ie=sie))
 
@@ -461,7 +529,17 @@ def texto_russell(D, fed, move, hyg):
     recorrido = (["", *[n for n, _ in RECORRIDO]],
                  [["Cociente IWM/SPY (distancia)", *[pct(dq.iloc[t - a], 2) for _, a in RECORRIDO]],
                   ["IWM (distancia)", *[pct(di.iloc[ti - a], 1) for _, a in RECORRIDO]]])
-    return dict(titulo="Russell 2000", ficha=ficha, veredicto=c.capitalize() + hist, recorrido=recorrido,
+    p = panel("russell", {"sin aviso": "verde", "aviso": "naranja", "aviso serio": "rojo", "no aplica": "gris"}[c],
+              c.capitalize(), dq.iloc[t], pct(dq.iloc[t], 2), -2,
+              [f"IWM/SPY {pct(dq.iloc[t], 2)} (corte −2%)", f"{sq} semanas por debajo del −2%" if sq else "",
+               f"IWM {pct(di.iloc[ti], 1)} de su EMA", f"Aviso serio bajo {num(ema_iwm, 1)}" if di.iloc[ti] >= 0 else ""])
+    corte_q = num(ema(q).iloc[t] * 0.98, 4)
+    p["cambio"] = {"sin aviso": texto_cambio("Por nivel", f"aviso si el cociente IWM/SPY cierra bajo {corte_q}", None),
+                   "aviso": texto_cambio("Por nivel", f"aviso serio si el IWM cierra bajo {num(ema_iwm, 1)}",
+                                         f"sin aviso si el cociente IWM/SPY cierra sobre {corte_q}"),
+                   "aviso serio": texto_cambio("Por nivel", None, f"aviso si el IWM cierra sobre {num(ema_iwm, 1)}"),
+                   "no aplica": "Por nivel. Vuelve a contar cuando el SPY cierre sobre su EMA."}[c]
+    return dict(titulo="Russell 2000", panel=p, ficha=ficha, veredicto=c.capitalize() + hist, recorrido=recorrido,
                 estado={"Russell": c}, estado_ant={"Russell": c_ant}, resumen=" ".join(frases))
 
 
@@ -507,7 +585,18 @@ def texto_spy(D):
     recorrido = (["", *[n for n, _ in RECORRIDO]],
                  [["Cierre", *[num(s.iloc[t - a]) for _, a in RECORRIDO]],
                   ["Distancia", *[pct(d.iloc[t - a], 1) for _, a in RECORRIDO]]])
-    return dict(titulo="S&P 500 (SPY)", ficha=ficha, veredicto=f"{lado.capitalize()} de su EMA, {z}",
+    lateral = (f"Sale del lateral hacia arriba ({num(techo)})" if s.iloc[t] > techo
+               else f"Sale del lateral hacia abajo ({num(suelo)})" if s.iloc[t] < suelo
+               else f"Lateral {num(suelo)}–{num(techo)}")
+    p = panel("spy", {"subida estirada": "naranja", "zona tranquila": "verde", "zona de vigilancia": "naranja", "ha cruzado": "rojo"}[z],
+              z.capitalize(), dd, pct(dd, 1), 0,
+              [f"{pct(dd, 1)} de su EMA", f"{sem} semanas {lado}", lateral])
+    bajo, alto = vecinos(dd, [0, 3.5, 11], ["ha cruzado", "zona de vigilancia", "zona tranquila", "subida estirada"])
+    precio = lambda c: num(e.iloc[t] * (1 + c / 100))
+    p["cambio"] = texto_cambio("Por nivel", bajo and f"{bajo[0]} si cierra bajo {precio(bajo[1])}",
+                               alto and f"{alto[0]} si cierra sobre {precio(alto[1])}", ("A la baja", "Al alza")
+                               ).replace("ya está en el peor tramo", "ya ha cruzado").replace("ya está en el mejor tramo", "ya está estirada")
+    return dict(titulo="S&P 500 (SPY)", panel=p, ficha=ficha, veredicto=f"{lado.capitalize()} de su EMA, {z}",
                 recorrido=recorrido, estado={"Zona del SPY": z}, estado_ant={"Zona del SPY": zona_spy(d.iloc[t - 1])},
                 resumen=" ".join(frases), datos=dict(cierre=s.iloc[t], ema=e.iloc[t], dist=dd))
 
@@ -563,7 +652,20 @@ def texto_spygld(D):
                  [["Cociente", *[num(q.iloc[t - a], 3) for _, a in RECORRIDO]],
                   ["Distancia", *[pct(d.iloc[t - a], 1) for _, a in RECORRIDO]],
                   ["Oro frente a su EMA", *[pct(dgld.iloc[tg - a], 1) for _, a in RECORRIDO]]])
-    return dict(titulo="S&P 500 ÷ Oro (SPY/GLD)", ficha=ficha, veredicto=f"{lado.capitalize()} de su EMA, {z}; contracción: {c}",
+    oro_abajo = dgld.iloc[tg] < 0
+    p = panel("spygld", "rojo" if c == "los dos" else {"zona tranquila": "verde", "zona de vigilancia": "naranja", "ha cruzado": "rojo"}[z],
+              z.capitalize(), dd, pct(dd, 1), 0,
+              [f"{pct(dd, 1)} de su EMA", f"{sem} semanas {lado}",
+               f"Oro bajo su EMA: {racha(dgld < 0, tg)} semanas" if oro_abajo else "Oro por encima de su EMA",
+               "Contracción de liquidez: los dos" if c == "los dos" else ""])
+    bajo, alto = vecinos(dd, [0, 5.2], ["ha cruzado", "zona de vigilancia", "zona tranquila"])
+    nivel = lambda c: num(e.iloc[t] * (1 + c / 100), 3)
+    contra = {"solo el oro": f"Contracción de liquidez completa si el SPY cierra bajo su EMA ({num(ema(D.s['spy']).iloc[tsp])}).",
+              "solo el SPY": f"Contracción de liquidez completa si el GLD cierra bajo su EMA ({num(ema(D.s['gld']).iloc[tg])}).",
+              "ninguno": "", "los dos": "Sale de la contracción de liquidez si el SPY o el oro cierran sobre su EMA."}[c]
+    p["cambio"] = texto_cambio("Por nivel", bajo and f"{bajo[0]} si el cociente cierra bajo {nivel(bajo[1])}",
+                               alto and f"{alto[0]} si el cociente cierra sobre {nivel(alto[1])}", extra=contra)
+    return dict(titulo="S&P 500 ÷ Oro (SPY/GLD)", panel=p, ficha=ficha, veredicto=f"{lado.capitalize()} de su EMA, {z}; contracción: {c}",
                 recorrido=recorrido,
                 estado={"Zona del SPY/GLD": z, "Contracción de liquidez": c},
                 estado_ant={"Zona del SPY/GLD": zona_gld(d.iloc[t - 1]),
@@ -603,14 +705,24 @@ def texto_vix(D, spy):
     hist = cambio[(cambio.index >= "2002-01-01")].iloc[:-1].abs().dropna()
     cx = cambio.iloc[t]
     pctil = (hist < abs(cx)).mean() * 100
+    comparacion = f"mayor que el {num(pctil, 0)}%" if pctil >= 50 else f"menor que el {num(100 - pctil, 0)}%"
     frases.append(f"Esta semana ha {'subido' if cx >= 0 else 'bajado'} un {num(abs(cx), 1)}% "
-                  f"({num(abs(v.iloc[t] - v.iloc[t - 1]))} puntos), un movimiento mayor que el {num(pctil, 0)}% de las semanas desde 2002.")
+                  f"({num(abs(v.iloc[t] - v.iloc[t - 1]))} puntos), un movimiento {comparacion} de las semanas desde 2002.")
     ficha = [("Nivel (la regla)", f"{num(x)}: {z}"),
              ("Semanas seguidas por encima de 20", f"{s20}" + ("" if s20 else f" ({racha(v <= 20, t)} por debajo)")),
              ("Cambio semanal", f"{pct(cx, 1)} ({num(v.iloc[t] - v.iloc[t - 1], 2, True)} puntos), percentil {num(pctil, 0)}"),
              ("Banda del SPY la semana que viene", f"±{num(banda, 1)}% ({num(c * (1 - banda / 100), 0)}–{num(c * (1 + banda / 100), 0)})")]
     recorrido = (["", *[n for n, _ in RECORRIDO]], [["VIX", *[num(v.iloc[t - a]) for _, a in RECORRIDO]]])
-    return dict(titulo="VIX", ficha=ficha, veredicto=z.capitalize() + (f", {s20} semanas por encima de 20" if s20 else ""),
+    p = panel("vix", {"calma": "verde", "antesala": "naranja", "inestabilidad": "rojo", "pánico": "rojo"}[z],
+              z.capitalize(), x, num(x), 20,
+              [f"{num(x)} (corte 20)", f"SPY {num(c * (1 - banda / 100), 0)}–{num(c * (1 + banda / 100), 0)} la semana que viene",
+               f"{s20} semanas por encima de 20" if s20 else f"{racha(v <= 20, t)} semanas por debajo de 20"])
+    bajo, alto = vecinos(x, [16, 20, 30], ["calma", "antesala", "inestabilidad", "pánico"])
+    regla = (f"Regla de las 3 semanas por encima de 20: activa, lleva {s20}." if s20 >= 3
+             else f"Regla de las 3 semanas por encima de 20: lleva {s20} de 3.")
+    p["cambio"] = texto_cambio("Por nivel y por semanas", alto and f"{alto[0]} si cierra sobre {num(alto[1], 0)}",
+                               bajo and f"{bajo[0]} si cierra bajo {num(bajo[1], 0)}", extra=regla)
+    return dict(titulo="VIX", panel=p, ficha=ficha, veredicto=z.capitalize() + (f", {s20} semanas por encima de 20" if s20 else ""),
                 recorrido=recorrido, estado={"Zona del VIX": z}, estado_ant={"Zona del VIX": zona_vix(v.iloc[t - 1])},
                 resumen=" ".join(frases))
 
@@ -667,7 +779,25 @@ def texto_kospi(D):
     recorrido = (["", *[n for n, _ in RECORRIDO]],
                  [["Cierre", *[num(k.iloc[t - a], 0, miles=True) for _, a in RECORRIDO]],
                   ["Distancia", *[pct(dk.iloc[t - a], 1) for _, a in RECORRIDO]]])
-    return dict(titulo="KOSPI", ficha=ficha, veredicto=c.capitalize() + hist, recorrido=recorrido,
+    sop_txt = {"por debajo": f"Bajo el soporte {zona}", "dentro": f"Dentro del soporte {zona}",
+               "por encima": f"{pct((cierre / alto - 1) * 100, 1)} del soporte"}[s_estado]
+    p = panel("kospi", {"sin divergencia": "verde", "aviso flojo": "naranja", "aviso serio": "rojo",
+                        "aviso serio con las dos cosas": "rojo", "no hay divergencia (SPY abajo)": "gris"}[c],
+              c.capitalize(), d, pct(d, 1), 0,
+              [f"{pct(d, 1)} de su EMA", f"{sk} semanas por debajo" if sk else "", sop_txt])
+    ek = ema(k).iloc[t]
+    sobre_ema = f"sin divergencia si cierra sobre su EMA ({num(ek, 0, miles=True)})"
+    bajo_5 = num(ek * 0.95, 0, miles=True)
+    faltan = 3 - sk
+    p["cambio"] = {"sin divergencia": texto_cambio("Por semanas y por nivel", f"aviso flojo si cierra bajo su EMA ({num(ek, 0, miles=True)})", None),
+                   "aviso flojo": texto_cambio("Por semanas y por nivel", f"aviso serio con {faltan} semanas más por debajo o si cierra bajo {bajo_5} (−5%)", sobre_ema),
+                   "aviso serio": texto_cambio("Por semanas y por nivel",
+                                               f"las dos cosas si cierra bajo {bajo_5} (−5%)" if sk >= 3 else f"las dos cosas con {faltan} semanas más por debajo",
+                                               sobre_ema),
+                   "aviso serio con las dos cosas": texto_cambio("Por semanas y por nivel", None,
+                                                                 f"aviso serio si cierra sobre {bajo_5} (−5%); {sobre_ema}"),
+                   "no hay divergencia (SPY abajo)": "Por semanas y por nivel. Vuelve a contar cuando el SPY cierre sobre su EMA."}[c]
+    return dict(titulo="KOSPI", panel=p, ficha=ficha, veredicto=c.capitalize() + hist, recorrido=recorrido,
                 estado={"KOSPI": c, "Soporte del KOSPI": s_estado},
                 estado_ant={"KOSPI": c_ant,
                             "Soporte del KOSPI": "por debajo" if k.iloc[t - 1] < bajo else "dentro" if k.iloc[t - 1] <= alto else "por encima"},
@@ -735,6 +865,8 @@ def escribir_docx(filas, sabado, lunes, ruta, aviso_semana):
             cab, filas_r = f["recorrido"]
             tabla(cab, filas_r)
             parrafo("Qué ha cambiado: ", cambios(f) + (" " + f["extra"] if f.get("extra") else ""))
+            parrafo("Semanas malas: ", f["malas"])
+            parrafo("Para cambiar de tramo: ", f["panel"]["cambio"])
             parrafo("Resumen: ", f["resumen"])
     titulo("Conclusiones (las escribe David)", 1)
     for n in ["Conclusión del lado de la Fed (FED + MOVE + HYG)", "El Russell, entre los dos lados",
@@ -742,6 +874,67 @@ def escribir_docx(filas, sabado, lunes, ruta, aviso_semana):
         titulo(n, 2)
         doc.add_paragraph("")
     doc.save(ruta)
+
+
+def calcular(D):
+    fed = texto_fed(D)
+    move = texto_move(D)
+    hyg = texto_hyg(D)
+    spy = texto_spy(D)
+    return ([fed, move, hyg, texto_russell(D, fed["datos"], move["datos"], hyg["datos"]), spy,
+             texto_spygld(D), texto_vix(D, spy["datos"]), texto_kospi(D)], spy, hyg)
+
+
+def semanas_malas(colores):
+    """Frase de semanas en naranja o rojo: seguidas y en las últimas 53 (colores: de antigua a reciente)."""
+    seguidas = 0
+    for c in reversed(colores):
+        if c not in ("naranja", "rojo"):
+            break
+        seguidas += 1
+    ventana = colores[-(SEMANAS_DASHBOARD + 1):]
+    seguidas_txt = ("1 semana seguida" if seguidas == 1 else f"{seguidas} semanas seguidas") + " en naranja o rojo. "
+    return (seguidas_txt if seguidas else "Esta semana no está en naranja ni en rojo. "
+            ) + f"En las últimas {len(ventana)} semanas: {ventana.count('naranja')} en naranja y {ventana.count('rojo')} en rojo."
+
+
+def preparar_semanas(D):
+    """Recalcula las semanas pasadas con el mismo código que el Word.
+
+    Devuelve las filas y la cabecera del dashboard, y el texto de semanas malas de la
+    semana del informe. Se calculan dos ventanas para que las semanas más antiguas del
+    dashboard también lleven sus 53 semanas de historial."""
+    filas_j, cabecera, colores, malas = [], [], {}, {}
+    for atras in range(2 * SEMANAS_DASHBOARD, -1, -1):
+        lunes = D.lunes - pd.Timedelta(weeks=atras)
+        filas, spy, hyg = calcular(D.en_semana(lunes))
+        for f in filas:
+            colores.setdefault(f["panel"]["id"], []).append(f["panel"]["color"])
+            f["malas"] = malas[f["panel"]["id"]] = semanas_malas(colores[f["panel"]["id"]])
+        if atras > SEMANAS_DASHBOARD:
+            continue
+        sabado = (lunes + pd.Timedelta(days=5)).date().isoformat()
+        cambios_sem = []
+        for f in filas:
+            dif = [f"{f['estado_ant'][k]} → {v}" for k, v in f["estado"].items() if f["estado_ant"][k] != v]
+            filas_j.append({"sabado": sabado, **f["panel"], "lineas": " | ".join(f["panel"]["lineas"]),
+                            "titulo": f["titulo"], "veredicto": f["veredicto"], "cambia": bool(dif),
+                            "que_cambia": " · ".join(dif), "malas": f["malas"]})
+            if dif:
+                cambios_sem.append(f"{f['titulo']} ({', '.join(dif)})")
+        cabecera.append({"sabado": sabado, "viernes": fecha(viernes(lunes.date())),
+                         "spy_cierre": num(spy["datos"]["cierre"]), "spy_ema": num(spy["datos"]["ema"]),
+                         "hyg_dist": pct(hyg["datos"]["dist"], 2),
+                         "cambios": " · ".join(cambios_sem) or "Sin cambios de tramo"})
+    return filas_j, cabecera, malas
+
+
+def escribir_dashboard(filas_j, cabecera):
+    carpeta = AQUI.parent / "dashboard"
+    carpeta.mkdir(exist_ok=True)
+    (carpeta / "filas.json").write_text(json.dumps(filas_j, ensure_ascii=False))
+    (carpeta / "cabecera.json").write_text(json.dumps(cabecera, ensure_ascii=False))
+    print(f"Datos del dashboard guardados en: {carpeta}")
 
 
 def sabado_por_defecto(hoy):
@@ -764,18 +957,18 @@ def main():
                                       f"los datos de esta semana son provisionales.")
 
     D = Datos(lunes)
-    fed = texto_fed(D)
-    move = texto_move(D)
-    hyg = texto_hyg(D)
-    spy = texto_spy(D)
-    filas = [fed, move, hyg, texto_russell(D, fed["datos"], move["datos"], hyg["datos"]), spy,
-             texto_spygld(D), texto_vix(D, spy["datos"]), texto_kospi(D)]
+    filas, spy, hyg = calcular(D)
+    filas_j, cabecera, malas = preparar_semanas(D)
+    for f in filas:
+        f["malas"] = malas[f["panel"]["id"]]
 
     if aviso:
         print(aviso)
     for f in filas:
         print(f"\n== {f['titulo']}: {f['veredicto']}")
         print("   " + cambios(f) + (" " + f["extra"] if f.get("extra") else ""))
+        print("   " + f["malas"])
+        print("   " + f["panel"]["cambio"])
         print("   " + f["resumen"])
     print(f"\nComprobar en TradingView: SPY cierre {num(spy['datos']['cierre'])} y EMA {num(spy['datos']['ema'])}; "
           f"HYG a {pct(hyg['datos']['dist'], 2)} de su EMA.")
@@ -792,6 +985,7 @@ def main():
     ruta = carpeta / f"Análisis situación semanal {sabado.strftime('%d-%m-%Y')}.docx"
     escribir_docx(filas, sabado, lunes, ruta, aviso)
     print(f"\nInforme guardado en: {ruta}")
+    escribir_dashboard(filas_j, cabecera)
 
 
 if __name__ == "__main__":
