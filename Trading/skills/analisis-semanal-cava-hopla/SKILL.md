@@ -1,6 +1,6 @@
 ---
 name: analisis-semanal-cava-hopla
-description: Segundo paso del sábado de trading de David. Busca los vídeos largos de lunes a viernes de José Luis Cava y HOPLA Finance, saca su transcripción con minuto y escribe en Word un resumen de los puntos relevantes de cada vídeo y de la semana. Se lanza DESPUÉS de que David haya escrito sus conclusiones de /analisis-situacion-semanal. Activar con /analisis-semanal-cava-hopla [AAAA-MM-DD del sábado].
+description: Segundo paso del sábado de trading de David. Busca los vídeos largos de lunes a viernes de José Luis Cava y HOPLA Finance, saca su transcripción con minuto y escribe en Word un resumen de los puntos relevantes de cada vídeo y de la semana. Además lleva el vídeo del jueves de Cava al cuaderno CAVA AGENT y propone (con visto bueno de David) los cambios en las Fichas de ETF. Se lanza DESPUÉS de que David haya escrito sus conclusiones de /analisis-situacion-semanal. Activar con /analisis-semanal-cava-hopla [AAAA-MM-DD del sábado].
 ---
 
 # Skill: /analisis-semanal-cava-hopla
@@ -69,6 +69,55 @@ análisis acaba siendo el de Cava y el contraste deja de servir.
    "/Users/davidvh10/Desktop/Mis Cosas/RepositorioCodigo/venv/bin/python" ~/.claude/skills/analisis-semanal-cava-hopla/scripts/informe_docx.py "<carpeta>/transcripciones/resumen.md" "<carpeta>/Análisis Cava y Hopla DD-MM-AAAA.docx"
    ```
    Abrirlo con `open` y decir a David cuántos vídeos hay de cada canal.
+
+5. **El vídeo del jueves de Cava → Fichas de ETF** (añadido el 02/11/2026). Los jueves Cava dedica el
+   vídeo a ETF concretos, y de ahí salen las Fichas de ETF (Drive, `1QwOkjrLE6fThsUQtxucubEks06vkKnQ-_y8An7aQll4`)
+   y la lista a vigilar. Solo ese vídeo; Hopla no entra en este paso.
+
+   a. **Localizarlo** en `indice.json`: el vídeo de Cava cuyo `dia` empieza por "Jueves". Si no hay vídeo
+      el jueves, o no tiene transcripción, se dice y el paso termina.
+
+   b. **Añadirlo al cuaderno CAVA AGENT** para que no se quede atrás:
+      ```bash
+      notebooklm source add -n 864fab44-6bd0-4c78-8bed-175f1540d5f8 "<url>"
+      ```
+      Antes, comprobar con `notebooklm source list -n 864fab44-6bd0-4c78-8bed-175f1540d5f8 --json` que el
+      título no está ya. Solo vale la línea `Added source: <id>`: los errores de RPC salen antes y el
+      código de salida es 0 igualmente.
+
+   c. **Separar lo que nombra**, leyendo la transcripción ENTERA (la del paso 1, con minutos):
+      - **ETF con ficha** → ampliar su **Tesis**, sus **Niveles** o sus **Notas propias**. No se borra lo que hay.
+      - **ETF sin ficha** → ficha completa en "Parte especulativa", estado "Vigilando", sistema "Por decidir
+        con las reglas de la especulativa". Los datos de la réplica (nombre, ISIN, índice, TER,
+        acumulación, réplica, ticker de Xetra) salen de **justETF**
+        (`https://www.justetf.com/en/etf-profile.html?isin=<ISIN>`), **nunca del vídeo ni de memoria**;
+        si Cava da un dato que no coincide, se anota en Notas propias. Ticker del gráfico: el
+        equivalente americano, y en "¿Mismo índice?" se dice si coincide.
+      - **Acciones sueltas** → a "Acciones sueltas" en Descartados, con la fecha.
+      - Si no nombra ningún ETF ni nivel aprovechable, se dice y no se toca el documento.
+
+   d. **Enseñar el borrador a David ANTES de escribir.** Cada cambio con el texto exacto que irá al
+      documento y, al lado, la cita literal con su `[mm:ss]` para que pueda comprobarla. Mismas reglas
+      que el resumen: copiar modales, "no source, no note", Gemini no es fuente. En la ficha el texto va
+      con la fecha del vídeo entre paréntesis, sin minuto (como las demás fichas). **Nada se escribe sin
+      su visto bueno.**
+
+   e. **Con el visto bueno, escribir en el documento** (cargar antes el skill `google-workspace`):
+      - `read_doc` va a fichero y viene envuelto en `{content: …}`: extraerlo antes de `docs_index.py`.
+      - Textos sueltos: `replaceAllText` con un trozo único (comprobar antes con `docs_index.py find`).
+        Si la etiqueta en negrita va delante, sustituir solo la parte del cuerpo.
+      - Ficha nueva, receta del 02/11/2026 (ficha de Salud). Cada paso con `requiredRevisionId`,
+        releyendo entre uno y otro:
+        1. Al final del párrafo de Notas propias de la ficha anterior, insertar
+           `\n<Nombre>\nTesis de Cava: …\nNiveles de Cava: …\nRiesgos: …\nNotas propias: …`; poner el
+           nombre en `HEADING_2` y en negrita solo las cuatro etiquetas.
+        2. Tabla de 12×2 con `docs_index.py new-table --at <endIndex − 1 del título> --tab t.0` y, en la
+           misma llamada, `updateTableColumnProperties` a 234 pt `FIXED_WIDTH`.
+        3. Borrar el párrafo vacío que queda debajo de la tabla, poner los márgenes de celda a 0 pt y la
+           columna de etiquetas en negrita (así son las demás fichas).
+      - Actualizar la cabecera: "Versión del <sábado>" y el último jueves del rango de vídeos.
+      - **Releer el documento** y comprobar texto, negritas y que no quedan párrafos vacíos. Decir a
+        David qué ha cambiado; el enlace no cambia.
 
 ## Por qué el resumen lo escribe Claude y no un script
 
