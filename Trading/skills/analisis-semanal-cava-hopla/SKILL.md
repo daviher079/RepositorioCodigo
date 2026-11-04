@@ -115,6 +115,31 @@ análisis acaba siendo el de Cava y el contraste deja de servir.
       - *Hasta el 03/11 se escribía en Google Docs (receta de `read_doc`, `replaceAllText` y tabla de 12×2):
         queda en el historial de git de RepositorioCodigo.*
 
+6. **Conceptos nuevos → Guía** (añadido el 04/11/2026). De los vídeos de la semana (Cava y HOPLA) salen
+   a veces conceptos que no están en la Guía de conceptos técnicos (`~/Library/Mobile Documents/com~apple~CloudDocs/Downloads/Obsidian/david_brain/02_Wiki/projects/trading/trading-guia.md`).
+   Es la primera de las tres velocidades del Playbook: un concepto va a la Guía cuando sale, porque no toca
+   el sistema.
+
+   a. **Buscar candidatos** leyendo las transcripciones ENTERAS (paso 2): un término, un indicador, un
+      mecanismo de mercado o una pauta que el vídeo **explica**. Una mención de pasada no cuenta.
+
+   b. **Comprobar con `grep` que no está ya** en la Guía (por el término y por sus sinónimos). Si está,
+      solo se propone ampliarlo cuando el vídeo añade algo que la entrada no dice.
+
+   c. **Si lo que trae el vídeo es una regla** (cuándo comprar, vender, cuánto o con qué stop), **no va a
+      la Guía**: se apunta en `trading-pendientes.md`, en "Por debatir", para la revisión mensual. El
+      sistema no se cambia en plena simulación.
+
+   d. **Enseñar el borrador a David ANTES de escribir**, con el tono de la Guía, separando en cada entrada:
+      qué es (hecho), cómo lo usa el autor (opinión, con la cita literal y su `[mm:ss]`) y si tiene regla en
+      el Playbook. Mismas reglas que el resumen: copiar los modales, "no source, no note" (lo que no dice
+      el vídeo se marca como conocimiento general o como deducción propia) y otra IA no es fuente. Al lado
+      de cada propuesta, la sección de la Guía donde iría. **Nada se escribe sin su visto bueno.**
+
+   e. **Con el visto bueno, escribir** en `trading-guia.md` con Edit, dentro de la sección que toque, sin
+      borrar nada de lo que hay. Releer, subir al Master Brain con `~/.claude/nlm-upsert.sh "<ruta>"` y
+      decir a David qué ha cambiado. Si no hay conceptos nuevos esa semana, se dice en una línea.
+
 ## Por qué el resumen lo escribe Claude y no un script
 
 Resumir es criterio: qué es relevante, qué cita lo prueba. Por eso no hay "gate" automático que diga
