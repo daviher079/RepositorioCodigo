@@ -6,7 +6,8 @@ description: Informe semanal de trading de David. Calcula las 8 filas de Datos m
 # Skill: /analisis-situacion-semanal
 
 Primer paso del sábado. Todo lo que hace sale de la **Especificación — Análisis semanal automatizado**
-(Google Drive, `1npxghc2JILV_VT534GFiZtEbDYzFNx9wI5kKOAHnzOs`). Si la especificación y el script no
+(vault, `~/Library/Mobile Documents/com~apple~CloudDocs/Downloads/Obsidian/david_brain/02_Wiki/projects/trading/trading-especificacion.md`; desde el 04/11/2026 — la copia de Drive
+`1npxghc2JILV_VT534GFiZtEbDYzFNx9wI5kKOAHnzOs` ya no es la viva). Si la especificación y el script no
 coinciden, manda la especificación: se corrige el script, no la lectura.
 
 **El informe NO escribe conclusiones ni une filas.** Eso lo hace David después de leerlo. Tampoco

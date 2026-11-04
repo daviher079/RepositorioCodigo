@@ -5,8 +5,8 @@ description: Segundo paso del sábado de trading de David. Busca los vídeos lar
 
 # Skill: /analisis-semanal-cava-hopla
 
-Parte de la **Especificación — Análisis semanal automatizado** (Google Drive,
-`1npxghc2JILV_VT534GFiZtEbDYzFNx9wI5kKOAHnzOs`, sección 2).
+Parte de la **Especificación — Análisis semanal automatizado** (vault,
+`~/Library/Mobile Documents/com~apple~CloudDocs/Downloads/Obsidian/david_brain/02_Wiki/projects/trading/trading-especificacion.md`, sección 2; desde el 04/11/2026 — la copia de Drive ya no es la viva).
 
 ## Antes de empezar: el orden
 
@@ -71,8 +71,9 @@ análisis acaba siendo el de Cava y el contraste deja de servir.
    Abrirlo con `open` y decir a David cuántos vídeos hay de cada canal.
 
 5. **El vídeo del jueves de Cava → Fichas de ETF** (añadido el 02/11/2026). Los jueves Cava dedica el
-   vídeo a ETF concretos, y de ahí salen las Fichas de ETF (Drive, `1QwOkjrLE6fThsUQtxucubEks06vkKnQ-_y8An7aQll4`)
-   y la lista a vigilar. Solo ese vídeo; Hopla no entra en este paso.
+   vídeo a ETF concretos, y de ahí salen las Fichas de ETF (vault, `~/Library/Mobile Documents/com~apple~CloudDocs/Downloads/Obsidian/david_brain/02_Wiki/projects/trading/trading-fichas-etf.md`;
+   desde el 04/11/2026 — la copia de Drive ya no es la viva) y la lista a vigilar. **Un ETF nuevo entra como
+   candidato del banquillo, nunca directo a la cartera** (Playbook único, sección 8). Solo ese vídeo; Hopla no entra en este paso.
 
    a. **Localizarlo** en `indice.json`: el vídeo de Cava cuyo `dia` empieza por "Jueves". Si no hay vídeo
       el jueves, o no tiene transcripción, se dice y el paso termina.
@@ -102,22 +103,17 @@ análisis acaba siendo el de Cava y el contraste deja de servir.
       con la fecha del vídeo entre paréntesis, sin minuto (como las demás fichas). **Nada se escribe sin
       su visto bueno.**
 
-   e. **Con el visto bueno, escribir en el documento** (cargar antes el skill `google-workspace`):
-      - `read_doc` va a fichero y viene envuelto en `{content: …}`: extraerlo antes de `docs_index.py`.
-      - Textos sueltos: `replaceAllText` con un trozo único (comprobar antes con `docs_index.py find`).
-        Si la etiqueta en negrita va delante, sustituir solo la parte del cuerpo.
-      - Ficha nueva, receta del 02/11/2026 (ficha de Salud). Cada paso con `requiredRevisionId`,
-        releyendo entre uno y otro:
-        1. Al final del párrafo de Notas propias de la ficha anterior, insertar
-           `\n<Nombre>\nTesis de Cava: …\nNiveles de Cava: …\nRiesgos: …\nNotas propias: …`; poner el
-           nombre en `HEADING_2` y en negrita solo las cuatro etiquetas.
-        2. Tabla de 12×2 con `docs_index.py new-table --at <endIndex − 1 del título> --tab t.0` y, en la
-           misma llamada, `updateTableColumnProperties` a 234 pt `FIXED_WIDTH`.
-        3. Borrar el párrafo vacío que queda debajo de la tabla, poner los márgenes de celda a 0 pt y la
-           columna de etiquetas en negrita (así son las demás fichas).
+   e. **Con el visto bueno, escribir en el documento** (`trading-fichas-etf.md` del vault, con la
+      herramienta Edit; desde el 04/11/2026 ya no se escribe en Google Docs):
+      - Textos sueltos: Edit con un trozo único del fichero. No se borra lo que hay: se amplía.
+      - Ficha nueva: copiar la estructura de una ficha existente de "Parte especulativa" (título `###`,
+        tabla de 12 filas `| **Etiqueta** | valor |` y los cuatro párrafos **Tesis de Cava**, **Niveles de
+        Cava**, **Riesgos** y **Notas propias**) y pegarla al final de esa parte, antes de "## Descartados".
       - Actualizar la cabecera: "Versión del <sábado>" y el último jueves del rango de vídeos.
-      - **Releer el documento** y comprobar texto, negritas y que no quedan párrafos vacíos. Decir a
-        David qué ha cambiado; el enlace no cambia.
+      - **Releer el fichero** y comprobar el texto. Subirlo al Master Brain con
+        `~/.claude/nlm-upsert.sh "<ruta>"` y decir a David qué ha cambiado.
+      - *Hasta el 03/11 se escribía en Google Docs (receta de `read_doc`, `replaceAllText` y tabla de 12×2):
+        queda en el historial de git de RepositorioCodigo.*
 
 ## Por qué el resumen lo escribe Claude y no un script
 
