@@ -22,6 +22,7 @@ David. La conclusión de David puede ser más prudente que lo que diga la regla,
 | Reglas | `trading-playbook.md` (el script las lleva dentro; si cambia una regla, se cambia el script) |
 | Qué se examina | `trading-plan.md`, tabla **"Parámetros del examen"** (zona, stop e importe de cada uno) |
 | Qué está comprado | `trading-posiciones.md`, tabla **"Abiertas"** |
+| Cómo se salió | `trading-posiciones.md`, tabla **"Cerradas"**: la última salida de cada nombre decide el **Gatillo de Recompra** (solo si el motivo dice "EMA 50") |
 | Sale | `sabados/estado-AAAA-MM-DD.md` (solo el modo sábado) |
 
 ## Pasos (modo sábado)
@@ -45,22 +46,33 @@ David. La conclusión de David puede ser más prudente que lo que diga la regla,
 
 4. **Con el visto bueno de David**, y solo entonces:
    - Si compra o vende: proponer la línea de `trading-posiciones.md` y escribirla cuando la confirme.
+   - **Si vende por el stop** (añadido 2, 05/11): en "Parámetros del examen" del Plan, su **Zona y Stop pasan a «—»**. Así el sábado siguiente sale como *"sin medir"* y no vuelve a dar gatillo en la zona que falló. Solo vuelve a la cartera con una zona nueva medida con `--nuevo`. Si vende por la EMA 50, la zona se conserva (vale el Gatillo de Recompra).
+   - **Al cerrar una posición**, el "Motivo de salida" en "Cerradas" se escribe **literal**: `Stop`, `EMA 50` o `Semáforo rojo`. El script busca "EMA" en ese texto para saber si vigila el Gatillo de Recompra; con otro texto no lo vigilaría.
    - Anotar el valor de la especulación de ese sábado en `trading-posiciones.md` (para el freno del 10%).
    - Si un candidato sube o baja: cambiar la fila en "Parámetros del examen" y en el banquillo del Plan.
    - Subir lo que cambie al Master Brain con `~/.claude/nlm-upsert.sh "<ruta>"`.
+
+## Modo medir (05/11)
+
+```bash
+"/Users/davidvh10/Desktop/Mis Cosas/RepositorioCodigo/venv/bin/python" estado.py --medir CIBR    # o --medir todos
+```
+
+Con la zona y el stop del Plan, simula cada retroceso de su historia (entra con un cierre en la zona, sale con el primer cierre semanal bajo el stop) y da la **pérdida real media en R** y cuántas veces saltó. Ese `2.1 (5)` se escribe, con visto bueno de David, en la columna **"Pérdida real"** de "Parámetros del examen". Se corre al poner zona y stop a un ETF y al cambiarlos, no cada sábado. El sábado, el ratio que manda (filtro 1:2, home run, prioridad) es el **real** = papel ÷ pérdida real; con menos de 5 stops saltados, el de papel con ⚠️.
 
 ## Modo nuevo
 
 ```bash
 "/Users/davidvh10/Desktop/Mis Cosas/RepositorioCodigo/venv/bin/python" estado.py --nuevo TICKER        # ETF
 "/Users/davidvh10/Desktop/Mis Cosas/RepositorioCodigo/venv/bin/python" estado.py --nuevo TICKER:empresa # empresa (filtro 4: resultados)
+"/Users/davidvh10/Desktop/Mis Cosas/RepositorioCodigo/venv/bin/python" estado.py --nuevo XLV --replica QDVG.DE  # + tabla de ruido en la réplica
 ```
 
 Saca el examen (filtro, correlación con la cartera, tendencia, lateral, estocástico; resultados si es
 empresa) y **la historia de retrocesos con sus huecos**, para medir zona y stop. Después:
 - **Réplica UCITS:** comprobarla en justETF. Sin réplica UCITS no entra.
 - **La zona la elige David**, con esa historia, su gráfico y los niveles de Cava.
-- **Stop:** por nivel si hay hueco natural; si no, % de ruido en la réplica.
+- **Stop:** por nivel si hay hueco natural; si no, % de ruido en la réplica. La **tabla de ruido** (rehecha el 05/11) sale sola en el modo nuevo, medida en la réplica que se pase con `--replica`. Definición: entrada = cada semana de un retroceso de su historia que cierra por encima de su EMA 50; salta = algún cierre de las 8 semanas siguientes cae un X% o más bajo la entrada. El stop va en el salto, y lo elige David. Comprobada con XLE (10% → 15%, 12% → 8%), EXXY (8% → 11%, 10% → 1%) y QDVG (10% → 3%): los stops elegidos siguen valiendo.
 - Con zona y stop: **ratio** (≥ 1:2) y **tope del 1%**. Si cumple todo → cartera (con la paridad
   recalculada sobre el 38% del valor actual); si no → banquillo. En los dos casos, una fila en
   "Parámetros del examen" y, si es nuevo, su ficha en `trading-fichas-etf.md`. Todo con visto bueno.
@@ -70,9 +82,12 @@ empresa) y **la historia de retrocesos con sus huecos**, para medir zona y stop.
 - **Gatillo de agotamiento:** lo mira con números (volumen bajo la media de la caída + cuerpo < mitad del
   rango o mecha inferior > cuerpo) y dice *"posible gatillo: confírmalo en el gráfico"*. Lo confirma David.
 - **Escape falso del S&P:** se mira en el gráfico.
+- **Dinero nuevo del núcleo** (añadido 6, 05/11; plan real desde enero de 2027): bajo el semáforo, una línea dice a dónde iría el dinero nuevo del núcleo según SPY/GLD frente a su EMA 50 (lateral = regla de la sección 3 sobre el cociente). La **banda del oro** (5-15%) no la puede comprobar: la simulación no lleva el valor real del núcleo. La comprueba David.
+- **Ratio, home run y prioridad** (añadido 5, 05/11): el ratio se escribe siempre **1:X**. Con 1:4 o más sale marcado ⚾ **home run** (mismo tamaño que los demás). Si dos o más pueden entrar la misma semana, el bloque C dice la **prioridad**: primero el de mayor ratio.
+- **Gatillo de Recompra** (añadido el 05/11): tras una salida por la EMA 50, cada sábado dice si está *en espera* (cierre bajo la EMA) o *se cumple*, y en ese caso comprueba el permiso (semáforo, ratio con el cierre como entrada y el stop del Plan, tope del 1% y riesgo abierto). Dos cosas que no decide: el **freno del 10%** (sin serie todavía) y el **lateral** (el permiso del Playbook no lo nombra): las marca para David.
 - **Oro:** usa el futuro GC=F; cerca de 3.201 se comprueba GOLD en TradingView.
 - **Stop por nivel:** la propuesta de subida (escalón nuevo) se revisa en el gráfico.
-- **Descarte del banquillo por 13 semanas:** sin decidir, no lo propone.
+- **Descarte del banquillo por 13 semanas:** descartado por David el 05/11. No hay regla de salida del banquillo: no lo propone.
 
 ## Decisiones del código (declaradas)
 

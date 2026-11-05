@@ -5,10 +5,12 @@ Uso:
     python estado.py --sabado 2026-10-31  # un sábado concreto (cierre del viernes anterior)
     python estado.py --nuevo XLU          # examen de un candidato nuevo (+ historia para zona y stop)
     python estado.py --nuevo AWK:empresa  # empresa: añade el filtro 4 (resultados)
+    python estado.py --nuevo XLV --replica QDVG.DE   # + tabla de ruido medida en la réplica
+    python estado.py --medir CIBR         # pérdida real del stop con su zona del Plan (o --medir todos)
 
 Lee del vault:
     trading-plan.md        tabla "Parámetros del examen"
-    trading-posiciones.md  tabla "Abiertas"
+    trading-posiciones.md  tablas "Abiertas" y "Cerradas" (la última salida decide el Gatillo de Recompra)
 Escribe:
     trading/sabados/estado-AAAA-MM-DD.md   (solo el modo sábado)
 
@@ -42,6 +44,8 @@ CORR_MAX = 0.8                  # filtro 3
 LAT_PEND, LAT_SEMANAS = 2.0, 4  # lateral, 04/11
 FIN_LAT_VOL = 1.25              # fin del lateral, 04/11
 RATIO_MIN = 2.0                 # 1:2 hasta 20 operaciones
+HOME_RUN = 4.0                  # 1:4 o más = home run (añadido 5, David, 05/11)
+MIN_CASOS_REAL = 5              # con menos de 5 stops saltados en su historia, manda el ratio sobre papel (criterio de Claude, 05/11)
 
 
 # ---------------------------------------------------------------------------
@@ -107,6 +111,23 @@ def parametros():
 def posiciones():
     cab, filas = tabla_md((TRADING / "trading-posiciones.md").read_text(), "## Abiertas")
     return [dict(zip(cab, f)) for f in filas if any(f)]
+
+
+def cerradas():
+    """Última salida de cada nombre (tabla "Cerradas"), para el Gatillo de Recompra."""
+    cab, filas = tabla_md((TRADING / "trading-posiciones.md").read_text(), "## Cerradas")
+    ult = {}
+    for f in filas:
+        if not any(f):
+            continue
+        x = dict(zip(cab, f))
+        try:
+            x["_salida"] = pd.Timestamp(dt.datetime.strptime(x["Fecha salida"], "%d/%m/%Y"))
+        except ValueError:
+            continue
+        if x["Nombre"] not in ult or x["_salida"] > ult[x["Nombre"]]["_salida"]:
+            ult[x["Nombre"]] = x
+    return ult
 
 
 def zona(txt):
@@ -194,6 +215,11 @@ def gatillo(w):
     datos = (f"volumen {v / ref:.2f}x la media de la caída ({'menor' if vol_ok else 'no menor'}); "
              f"cuerpo {cuerpo / rango * 100 if rango else 0:.0f}% del rango; mecha inferior {'>' if mecha else '≤'} cuerpo")
     return hay, datos
+
+
+def ratio_txt(rt):
+    """Notación del Playbook: siempre 1:X, riesgo primero (05/11)."""
+    return f"1:{rt:.2f}" + (" ⚾ **home run**" if rt >= HOME_RUN else "")
 
 
 def ratio(w, entrada, stop):
@@ -309,12 +335,16 @@ def examen_etf(p, w, spy, cartera_w, pos, total):
     if z and st:
         entrada = c if z[0] <= c <= z[1] else (z[0] + z[1]) / 2
         stop = st[1] if st[0] == "nivel" else entrada * (1 - st[1])
-        rt, mx = ratio(w, entrada, stop)
-        out["ratio"] = f"{'✅' if rt >= RATIO_MIN else '❌'} {rt:.2f}:1 (entrada {entrada:.2f}, stop {stop:.2f}, máximo {mx:.2f})"
+        rt_papel, mx = ratio(w, entrada, stop)
+        rt, rtxt = ratio_real(rt_papel, p)
+        out["rt"] = rt
+        out["ratio"] = f"{'✅' if rt >= RATIO_MIN else '❌'} {rtxt} (entrada {entrada:.2f}, stop {stop:.2f}, máximo {mx:.2f})"
         imp = float(p["Importe"]) if p["Importe"] not in ("—", "") else 0
         riesgo = imp * (entrada - stop) / entrada if st[0] == "nivel" else imp * st[1]
         out["riesgo"] = riesgo
-        out["tope"] = f"{'✅' if riesgo <= TOPE_RIESGO * total else '❌'} {riesgo:.0f} € (tope {TOPE_RIESGO * total:.0f} €)"
+        pr = perdida_plan(p)
+        real_eur = f" · pérdida real media ~{riesgo * max(pr[0], 1.0):.0f} €" if pr else ""
+        out["tope"] = f"{'✅' if riesgo <= TOPE_RIESGO * total else '❌'} {riesgo:.0f} € sobre papel{real_eur} (tope {TOPE_RIESGO * total:.0f} €)"
         entra = entra and rt >= RATIO_MIN and riesgo <= TOPE_RIESGO * total
     out["entra"] = entra and t_ok
     if pos:
@@ -328,7 +358,7 @@ def examen_dentro(p, w, pos, st):
     e = ema(w.Close).iloc[-1]
     lineas = []
     if c < stop:
-        lineas.append(f"**SALTA EL STOP** ({c:.2f} < {stop}) → se vende el lunes")
+        lineas.append(f"**SALTA EL STOP** ({c:.2f} < {stop}) → se vende el lunes y vuelve al banquillo **sin Gatillo de Recompra**: su zona y su stop pasan a «—» y solo vuelve con zona nueva medida con `--nuevo` (Playbook, sección 5, añadido 2)")
     if c < e:
         lineas.append(f"**PIERDE LA EMA 50** ({c:.2f} < {e:.2f}) → se vende el lunes (Cinturón de Seguridad)")
     if st and st[0] == "pct":
@@ -340,6 +370,65 @@ def examen_dentro(p, w, pos, st):
     elif st:
         lineas.append("stop por nivel: si ha hecho un escalón nuevo (retrocede, deja suelo y supera el máximo), proponer subirlo bajo ese suelo — revísalo en el gráfico")
     return lineas or ["sigue: ningún stop ni salida"]
+
+
+def gatillo_recompra(p, w, salida, color, total, riesgo_abierto):
+    """Playbook, sección 5. Solo tras una salida por la EMA 50; tras un stop, zona nueva (añadido 2, 05/11).
+    Devuelve (texto, se_compra) o None si no aplica."""
+    motivo = salida["Motivo de salida"].lower()
+    if "ema" not in motivo:
+        return None   # salió por el stop o por el semáforo rojo: no hay recompra automática
+    c, e = w.Close.iloc[-1], ema(w.Close).iloc[-1]
+    w_tras = w[w.index > salida["_salida"]]
+    if w_tras.empty or c <= e:
+        return (f"Gatillo de Recompra: **en espera** (salió por la EMA 50 el {salida['Fecha salida']}; "
+                f"cierre {c:.2f} {'≤' if c <= e else '>'} EMA 50 {e:.2f})"), False
+    # Se cumple el gatillo: el permiso de la entrada (semáforo, ratio, tope del 1%, riesgo abierto, freno)
+    st = stop_param(p["Stop"]) if p["Stop"] not in ("—", "") else None
+    falla = []
+    if color != "🟢 VERDE":
+        falla.append(f"semáforo {color}")
+    rtxt = "sin stop en el Plan"
+    if st:
+        stop = st[1] if st[0] == "nivel" else c * (1 - st[1])
+        rt_papel, mx = ratio(w, c, stop)
+        rt, rtxt = ratio_real(rt_papel, p)
+        rtxt += f" (entrada {c:.2f}, stop {stop:.2f}, máximo {mx:.2f})"
+        if not rt >= RATIO_MIN:
+            falla.append(f"ratio {rtxt}")
+        imp = float(p["Importe"]) if p["Importe"] not in ("—", "") else 0
+        riesgo = imp * (c - stop) / c if stop < c else float("inf")
+        if riesgo > TOPE_RIESGO * total:
+            falla.append(f"tope del 1% ({riesgo:.0f} € > {TOPE_RIESGO * total:.0f} €)")
+        if riesgo_abierto + riesgo > RIESGO_ABIERTO_MAX * total:
+            falla.append(f"riesgo abierto ({riesgo_abierto + riesgo:.0f} € > {RIESGO_ABIERTO_MAX * total:.0f} €)")
+    else:
+        falla.append("sin stop en el Plan: medirlo con `--nuevo`")
+    base = (f"Gatillo de Recompra: **se cumple** (salió por la EMA 50 el {salida['Fecha salida']}; "
+            f"cierre {c:.2f} > EMA 50 {e:.2f}; ratio {rtxt})")
+    lat = lateral(w)[0]
+    extra = " · ⚠️ en lateral: el permiso del Playbook no lo nombra, decides tú" if lat else ""
+    extra += " · freno del 10%: sin serie todavía, compruébalo"
+    if falla:
+        return base + " → **no se compra**: falla " + "; ".join(falla) + extra, False
+    return base + " → **se compra el lunes**, sin esperar zona ni gatillo; ojo con la regla de los dos meses" + extra, rt
+
+
+def dinero_nuevo(viernes, spy):
+    """Añadido 6 (05/11): a dónde va el dinero nuevo del núcleo según SPY/GLD y su EMA 50 (plan real, desde enero de 2027)."""
+    gld = semanal("GLD", viernes)
+    sg = pd.DataFrame({"Close": (spy.Close / gld.Close)}).dropna()
+    c, e = sg.Close.iloc[-1], ema(sg.Close).iloc[-1]
+    lat = lateral(sg)[0]
+    if lat:
+        destino = "en lateral → **reparto normal 50/10** (5/6 al S&P 500, 1/6 al oro)"
+    elif c > e:
+        destino = "manda la bolsa → **todo al S&P 500**"
+    else:
+        destino = "manda el oro → **todo al oro**"
+    return (f"**Dinero nuevo del núcleo** (plan real, desde enero de 2027; Playbook, sección 2): SPY/GLD {c:.3f} frente a su EMA 50 "
+            f"{e:.3f} ({(c / e - 1) * 100:+.1f}%), {destino}. Banda del oro (5-15% de la cartera): si manda el oro y el oro ya "
+            "está en el 15%, o manda la bolsa y ya está en el 5%, reparto normal (compruébalo con tu cartera real).")
 
 
 def bloque_nucleo(p, w, viernes, sem_color, spy, vix):
@@ -379,12 +468,18 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--sabado", help="AAAA-MM-DD (por defecto, el último sábado)")
     ap.add_argument("--nuevo", help="TICKER o TICKER:empresa (examen de un candidato nuevo)")
+    ap.add_argument("--replica", help="con --nuevo: ticker de la réplica UCITS en Yahoo (p. ej. QDVG.DE) para la tabla de ruido")
+    ap.add_argument("--medir", help="NOMBRE o TICKER del Plan, o 'todos': pérdida real del stop con su zona")
     a = ap.parse_args()
     sab = dt.date.fromisoformat(a.sabado) if a.sabado else sabado_por_defecto(dt.date.today())
     vie = sab - dt.timedelta(days=1)
+    if a.medir:
+        medir(a.medir, vie)
+        return
 
     params = parametros()
     abiertas = {x["Nombre"]: x for x in posiciones()}
+    salidas = cerradas()
     total = CARTERA_TOTAL
     spy = semanal("SPY", vie)
     cartera_esp = [p for p in params if p["Lugar"] == "cartera" and p["Tipo"] in ("etf", "empresa")]
@@ -394,7 +489,7 @@ def main():
     cartera_w["S&P 500"] = spy
 
     if a.nuevo:
-        examen_nuevo(a.nuevo, vie, spy, cartera_w, total)
+        examen_nuevo(a.nuevo, vie, spy, cartera_w, total, a.replica)
         return
 
     color, bloqueos, (vix3, vix_ult), _, vix = semaforo(vie)
@@ -406,10 +501,12 @@ def main():
     for nombre, activo, dato in bloqueos:
         L.append(f"- {'⛔' if activo else '·'} {nombre}: {dato}")
     L.append(f"- {'⛔' if vix3 else '·'} VIX 3 semanas por encima de 20: últimas {vix_ult}\n")
+    L.append(dinero_nuevo(vie, spy) + "\n")
 
     # A. Cartera
     L.append("## A. Cartera\n")
     riesgo_abierto = 0
+    entran = []   # (nombre, ratio) de lo que puede entrar esta semana, para la prioridad (añadido 5)
     for p in [x for x in params if x["Lugar"] == "cartera"]:
         w = semanal(p["Gráfico"], vie) if p["Tipo"] != "nucleo-btc" else None
         pos = abiertas.get(p["Nombre"])
@@ -425,10 +522,18 @@ def main():
         riesgo_abierto += r.get("riesgo", 0) if pos else 0
         decision = ("**se compra el lunes** (si confirmas el gatillo)" if r["entra"] and color == "🟢 VERDE"
                     else "no se compra esta semana")
+        if not pos and r["entra"] and color == "🟢 VERDE":
+            entran.append((p["Nombre"], r.get("rt", 0)))
         for k, et in (("estado", "Estado"), ("tendencia", "Tendencia"), ("lateral", "Lateral"),
                       ("estocastico", "Estocástico"), ("ratio", "Ratio"), ("tope", "Tope del 1%")):
             if k in r:
                 L.append(f"- **{et}:** {r[k]}")
+        gr = gatillo_recompra(p, w, salidas[p["Nombre"]], color, total, riesgo_abierto) if not pos and p["Nombre"] in salidas else None
+        if gr:
+            L.append(f"- {gr[0]}")
+            if gr[1]:
+                decision = "**se compra el lunes** (Gatillo de Recompra)"
+                entran.append((p["Nombre"], gr[1]))
         if pos:
             for x in r["dentro"]:
                 L.append(f"- {x}")
@@ -450,6 +555,12 @@ def main():
             L.append(f"| {p['Nombre']} | sin datos ({ex.__class__.__name__}) | | | | | |")
             continue
         r = examen_etf(p, w, spy, cartera_w, None, total)
+        gr = gatillo_recompra(p, w, salidas[p["Nombre"]], color, total, riesgo_abierto) if p["Nombre"] in salidas else None
+        if gr:
+            r["estado"] = gr[0] + " · " + r["estado"]
+            if gr[1]:
+                entran.append((p["Nombre"], gr[1]))
+                ajustes.append(f"**{p['Nombre']}**: {gr[0]} → **se compra el lunes** (vuelve a la cartera con su zona y su stop del Plan; recalcular la paridad)")
         L.append(f"| {p['Nombre']} ({p['Gráfico']}) | {r['filtro']} | {r.get('correlacion', '')} | {r['tendencia']} | {r['lateral']} | {r['estado']} | {r.get('ratio', '—')} |")
         if p["Tipo"] == "empresa":
             empresas.append(p["Gráfico"])
@@ -458,6 +569,7 @@ def main():
             if "sin medir" in r["estado"]:
                 ajustes.append(f"**{p['Nombre']}** lleva 5+ semanas pasando el filtro → medir zona y stop con `--nuevo {p['Gráfico']}` para ver si puede subir")
             elif "✅" in r.get("ratio", ""):
+                entran.append((p["Nombre"], r.get("rt", 0)))
                 ajustes.append(f"**{p['Nombre']}** pasa el filtro y el ratio → **puede subir a la cartera**: recalcular la paridad sobre el 38% del valor actual")
         time.sleep(0.3)
     L.append("")
@@ -466,6 +578,10 @@ def main():
 
     # C. Ajustes
     L.append("## C. Ajustes\n")
+    if len(dict(entran)) >= 2:
+        orden = sorted(dict(entran).items(), key=lambda x: -x[1])   # un nombre solo una vez
+        ajustes.append("**Prioridad** (Playbook, sección 4: si compiten por el mismo dinero o por el riesgo abierto del 4%, "
+                       "entra primero el de mayor ratio): " + " → ".join(f"{n} ({ratio_txt(rt)})" for n, rt in orden))
     L += [f"- {x}" for x in ajustes] if ajustes else ["- Ninguno esta semana."]
     L.append("\n> Reglas de ajuste: [[trading-playbook]], sección 8. Nada se cambia en el Plan ni en Posiciones sin el visto bueno de David.")
 
@@ -475,7 +591,144 @@ def main():
     print(destino)
 
 
-def examen_nuevo(arg, vie, spy, cartera_w, total):
+def picos_retroceso(w):
+    """Picos de los retrocesos de su historia (misma detección que el modo --nuevo)."""
+    c = w.Close.values
+    e = ema(w.Close).values
+    dist = c / e - 1
+    sl = np.r_[[False] * 4, e[4:] > e[:-4]]
+    picos, i = [], 50
+    while i < len(c):
+        if dist[i] >= 0.10 and sl[i]:
+            pk = j = i
+            while j < len(c) - 1 and c[j + 1] >= c[pk] * 0.97:
+                j += 1
+                if c[j] > c[pk]:
+                    pk = j
+            k = pk + 1
+            while k < len(c) and k <= pk + 26 and c[k] <= c[pk]:
+                k += 1
+            if k < len(c):
+                picos.append(pk)
+            i = max(k, pk + 1)
+        else:
+            i += 1
+    return picos
+
+
+def medir_perdida(w, z, st):
+    """Stop de CIBR (05/11): cuánto se pierde DE VERDAD cuando el stop salta al cierre semanal.
+    Zona y stop por nivel se trasladan a cada retroceso en % del máximo de cierre de las últimas 52 semanas;
+    stop por % = bajo el precio de entrada. Entra con un cierre DENTRO de la zona; sale con el primer cierre
+    bajo el stop. Devuelve (entradas, ganadoras, pérdida media en R, peor en R, detalle)."""
+    c = w.Close.values
+    pico = w.Close.iloc[-52:].max()
+    zlo, zhi = (z[0] or z[1] * 0.97) / pico, z[1] / pico
+    entradas, ganadoras, rs, detalle = 0, 0, [], []
+    for pk in picos_retroceso(w):
+        lo, hi = c[pk] * zlo, c[pk] * zhi
+        k, ent, stp = pk + 1, None, None
+        while k < len(c):
+            if ent is None:
+                if c[k] > c[pk] or k > pk + 26:
+                    break
+                if lo <= c[k] <= hi:
+                    ent = c[k]
+                    stp = c[pk] * st[1] / pico if st[0] == "nivel" else ent * (1 - st[1])
+                    entradas += 1
+                    if stp >= ent:
+                        break
+            else:
+                if c[k] < stp:
+                    r = (c[k] - ent) / (ent - stp)
+                    rs.append(r)
+                    detalle.append(f"{w.index[pk]:%m/%Y}: salta el {w.index[k]:%d/%m/%Y}, {(c[k] / stp - 1) * 100:+.1f}% bajo el stop = {r:+.2f}R")
+                    break
+                if c[k] > c[pk]:
+                    ganadoras += 1
+                    detalle.append(f"{w.index[pk]:%m/%Y}: vuelve a máximos sin saltar = ganadora")
+                    break
+            k += 1
+    media = -float(np.mean(rs)) if rs else None
+    peor = -float(min(rs)) if rs else None
+    return entradas, ganadoras, media, peor, detalle
+
+
+def perdida_plan(p):
+    """Columna 'Pérdida real' del Plan: '2.1 (7)' -> (2.1, 7); sin medir -> None."""
+    v = p.get("Pérdida real", "—")
+    m = re.match(r"([\d.,]+)\s*\((\d+)\)", v or "")
+    return (float(m.group(1).replace(",", ".")), int(m.group(2))) if m else None
+
+
+def ratio_real(rt, p):
+    """Manda el ratio real (David, 05/11): el de papel dividido por la pérdida real media.
+    Sin medir o con menos de MIN_CASOS_REAL entradas, manda el de papel con aviso."""
+    pr = perdida_plan(p)
+    if pr and pr[1] >= MIN_CASOS_REAL and pr[0] > 0:
+        rr = rt / max(pr[0], 1.0)
+        return rr, f"{ratio_txt(rr)} real ({ratio_txt(rt).split(' ')[0]} sobre papel ÷ pérdida real {pr[0]:.1f}R, {pr[1]} stops saltados)"
+    motivo = "sin medir la pérdida real: `--medir`" if not pr else f"solo {pr[1]} stops saltados en su historia"
+    return rt, f"{ratio_txt(rt)} sobre papel ⚠️ ({motivo})"
+
+
+def medir(nombre, vie):
+    params = parametros()
+    sel = [p for p in params if p["Tipo"] in ("etf", "empresa") and p["Zona"] not in ("—", "") and p["Stop"] not in ("—", "")
+           and (nombre == "todos" or nombre.lower() in (p["Nombre"].lower(), p["Gráfico"].lower()))]
+    if not sel:
+        print(f"No hay ninguna fila con zona y stop para «{nombre}» en 'Parámetros del examen'.")
+        return
+    for p in sel:
+        w = semanal(p["Gráfico"], vie, desde=915148800)
+        n, g, media, peor, det = medir_perdida(w, zona(p["Zona"]), stop_param(p["Stop"]))
+        print(f"## {p['Nombre']} ({p['Gráfico']}): zona {p['Zona']}, stop {p['Stop']}\n")
+        print(f"- Entradas en su historia: {n} · ganadoras {g} · saltó el stop {n - g}")
+        for d in det:
+            print(f"  - {d}")
+        if media is not None:
+            print(f"- **Pérdida real media {media:.2f}R, peor {peor:.2f}R**")
+            print(f"- Para el Plan, columna 'Pérdida real': `{media:.1f} ({n - g})` (entre paréntesis, las veces que saltó el stop)"
+                  + ("" if n - g >= MIN_CASOS_REAL else f" ⚠️ menos de {MIN_CASOS_REAL} casos: el sábado mandará el ratio sobre papel"))
+        else:
+            print("- No saltó el stop en ninguna: sin pérdida real que medir (el sábado manda el ratio sobre papel)")
+        print()
+        time.sleep(0.3)
+
+
+RUIDO_STOPS = [0.05, 0.08, 0.10, 0.12, 0.15, 0.20]
+
+
+def tabla_ruido(w):
+    """Tabla de ruido (definición del 05/11, rehecha): entrada = cada semana dentro de un retroceso
+    de su historia que cierra por encima de su EMA 50; salta = algún cierre de las 8 semanas
+    siguientes cae un X% o más bajo la entrada. Se mide en la réplica (Playbook, sección 3)."""
+    c = w.Close.values
+    e = ema(w.Close).values
+    ent = []
+    for pk in picos_retroceso(w):
+        k = pk + 1
+        while k < len(c) and k <= pk + 26 and c[k] <= c[pk]:
+            if c[k] > e[k] and k + 8 < len(c):
+                ent.append(k)
+            k += 1
+    if not ent:
+        return 0, []
+    filas = [(s, sum(bool((c[k + 1:k + 9] <= c[k] * (1 - s)).any()) for k in ent) / len(ent) * 100)
+             for s in RUIDO_STOPS]
+    return len(ent), filas
+
+
+def ruido_txt(t, w):
+    n, filas = tabla_ruido(w)
+    if not n:
+        return f"- **Tabla de ruido ({t}):** sin entradas en retroceso en su historia; no se puede medir."
+    return (f"- **Tabla de ruido ({t}, {n} entradas en retroceso desde {w.index[0]:%Y}):** "
+            + " · ".join(f"el {s*100:g}% salta el {x:.0f}%" for s, x in filas)
+            + ". El stop por % va en el **salto**: el primer % donde la cifra cae de golpe. **Lo eliges tú.**")
+
+
+def examen_nuevo(arg, vie, spy, cartera_w, total, replica=None):
     t, _, tipo = arg.partition(":")
     w = semanal(t, vie, desde=915148800)
     p = {"Nombre": t, "Lugar": "banquillo", "Tipo": "empresa" if tipo == "empresa" else "etf",
@@ -520,6 +773,10 @@ def examen_nuevo(arg, vie, spy, cartera_w, total):
           "; ".join(f"entre {a:+.1f}% y {b:+.1f}% ({g:.1f} puntos)" for g, a, b in saltos))
     print("- La **zona** sale de aquí y de su gráfico (techos anteriores, niveles de Cava): **la eliges tú**.")
     print("- Si hay un **hueco** en esa lista (un tramo donde no paró ninguno), el stop puede ir por **nivel**; si no, por **% de ruido** en la réplica.")
+    if replica:
+        print(ruido_txt(replica, semanal(replica, vie, desde=915148800)))
+    else:
+        print(ruido_txt(t, w) + " *(Medida en el gráfico de decisión; si la réplica es otra, pásala con `--replica`, que es donde se mide.)*")
     print("- Con zona y stop, se calcula el **ratio** (≥ 1:2) y el **tope del 1%**, y se añade una fila a 'Parámetros del examen' del Plan.")
 
 
