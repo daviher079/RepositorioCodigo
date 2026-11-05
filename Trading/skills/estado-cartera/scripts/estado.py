@@ -293,6 +293,55 @@ def semaforo(viernes):
 # El examen
 # ---------------------------------------------------------------------------
 
+def retrocesos_hist(w):
+    """Caídas de los retrocesos de su historia (desde ≥10% sobre su EMA 50 subiendo; cierre del pico al mínimo), en %."""
+    c, l = w.Close.values, w.Low.values
+    e = ema(w.Close).values
+    dist = c / e - 1
+    sl = np.r_[[False] * 4, e[4:] > e[:-4]]
+    rows, i = [], 50
+    while i < len(c):
+        if dist[i] >= 0.10 and sl[i]:
+            pk = j = i
+            while j < len(c) - 1 and c[j + 1] >= c[pk] * 0.97:
+                j += 1
+                if c[j] > c[pk]:
+                    pk = j
+            k, lo, lo_i = pk + 1, np.inf, None
+            while k < len(c) and k <= pk + 26 and c[k] <= c[pk]:
+                if l[k] < lo:
+                    lo, lo_i = l[k], k
+                k += 1
+            if lo_i is not None and k < len(c):
+                rows.append(float(round((lo / c[pk] - 1) * 100, 1)))
+            i = max(k, pk + 1)
+        else:
+            i += 1
+    return rows
+
+
+def esperando_suelo(w):
+    """Esperando suelo (05/11, David): la caída actual desde el máximo de 52 semanas ha pasado del borde alto del
+    hueco más grande de su historia. Si además salta el gatillo de la sección 3, aviso de posible suelo."""
+    orden = sorted(retrocesos_hist(w), reverse=True)
+    if len(orden) < 5:
+        return None
+    g, a, b = max((orden[i] - orden[i + 1], orden[i], orden[i + 1]) for i in range(len(orden) - 1))
+    mx = w.Close.iloc[-52:].max()
+    caida = (w.Close.iloc[-1] / mx - 1) * 100
+    if caida > a:
+        return None
+    hay, gdat = gatillo(w)
+    txt = (f"esperando suelo: cae {caida:.1f}% desde su máximo de 52 semanas ({mx:.2f}); en su historia "
+           f"({len(orden)} retrocesos) ninguno paró entre {a:+.1f}% y {b:+.1f}%, así que suele seguir hasta {b:+.1f}% o más "
+           f"(~{mx * (1 + b / 100):.2f})")
+    if hay:
+        txt += f" · **posible suelo** ({gdat}): medir zona y stop con `--nuevo`"
+    else:
+        txt += f" · sin gatillo todavía ({gdat})"
+    return txt
+
+
 def examen_etf(p, w, spy, cartera_w, pos, total):
     """Las preguntas del Playbook para un ETF o empresa de la especulación (cartera o banquillo)."""
     out = {}
@@ -331,6 +380,10 @@ def examen_etf(p, w, spy, cartera_w, pos, total):
     if lat:
         estado = "en lateral: no se hace nada" + (f" · {estado}" if z else "")
         entra = False
+    if not z and p["Lugar"] == "banquillo":
+        su = esperando_suelo(w)
+        if su:
+            estado = su.replace("`--nuevo`", f"`--nuevo {p['Gráfico']}`")
     out["estado"] = estado
     if z and st:
         entrada = c if z[0] <= c <= z[1] else (z[0] + z[1]) / 2
@@ -747,28 +800,7 @@ def examen_nuevo(arg, vie, spy, cartera_w, total, replica=None):
     if p["Tipo"] == "empresa":
         print("\n" + resultados_empresa(t))
     # Historia para que David elija zona y stop (Playbook, sección 3 y 5)
-    c, l = w.Close.values, w.Low.values
-    e = ema(w.Close).values
-    dist = c / e - 1
-    sl = np.r_[[False] * 4, e[4:] > e[:-4]]
-    rows, i = [], 50
-    while i < len(c):
-        if dist[i] >= 0.10 and sl[i]:
-            pk = j = i
-            while j < len(c) - 1 and c[j + 1] >= c[pk] * 0.97:
-                j += 1
-                if c[j] > c[pk]:
-                    pk = j
-            k, lo, lo_i = pk + 1, np.inf, None
-            while k < len(c) and k <= pk + 26 and c[k] <= c[pk]:
-                if l[k] < lo:
-                    lo, lo_i = l[k], k
-                k += 1
-            if lo_i is not None and k < len(c):
-                rows.append(float(round((lo / c[pk] - 1) * 100, 1)))
-            i = max(k, pk + 1)
-        else:
-            i += 1
+    rows = retrocesos_hist(w)
     print(f"\n**Retrocesos de su historia** (desde ≥10% sobre su EMA 50 subiendo; caída del cierre del pico al mínimo): "
           f"{len(rows)} casos, ordenados: {', '.join(f'{x:+.1f}%' for x in sorted(rows, reverse=True))}")
     orden = sorted(rows, reverse=True)

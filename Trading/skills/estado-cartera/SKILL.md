@@ -60,6 +60,10 @@ David. La conclusión de David puede ser más prudente que lo que diga la regla,
 
 Con la zona y el stop del Plan, simula cada retroceso de su historia (entra con un cierre en la zona, sale con el primer cierre semanal bajo el stop) y da la **pérdida real media en R** y cuántas veces saltó. Ese `2.1 (5)` se escribe, con visto bueno de David, en la columna **"Pérdida real"** de "Parámetros del examen". Se corre al poner zona y stop a un ETF y al cambiarlos, no cada sábado. El sábado, el ratio que manda (filtro 1:2, home run, prioridad) es el **real** = papel ÷ pérdida real; con menos de 5 stops saltados, el de papel con ⚠️.
 
+## Esperando suelo (05/11)
+
+Un candidato del banquillo **sin zona** cuya caída desde el máximo de 52 semanas ha pasado del borde alto del hueco más grande de su historia (los mismos retrocesos que enseña `--nuevo`) sale como **esperando suelo**: cuánto cae, dónde suele parar según su historia y si salta el gatillo de la sección 3 (agotamiento + volumen menor que la caída). Con gatillo, dice **posible suelo: medir zona y stop con `--nuevo`**. No mide ni decide: avisa. Decisión de David (05/11), nacida de SMH.
+
 ## Modo nuevo
 
 ```bash
