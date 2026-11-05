@@ -396,9 +396,19 @@ def examen_etf(p, w, spy, cartera_w, pos, total):
         riesgo = imp * (entrada - stop) / entrada if st[0] == "nivel" else imp * st[1]
         out["riesgo"] = riesgo
         pr = perdida_plan(p)
-        real_eur = f" · pérdida real media ~{riesgo * max(pr[0], 1.0):.0f} €" if pr else ""
-        out["tope"] = f"{'✅' if riesgo <= TOPE_RIESGO * total else '❌'} {riesgo:.0f} € sobre papel{real_eur} (tope {TOPE_RIESGO * total:.0f} €)"
-        entra = entra and rt >= RATIO_MIN and riesgo <= TOPE_RIESGO * total
+        tope = TOPE_RIESGO * total
+        # Tope del 1% (05/11, David): con 5+ stops saltados en su historia manda la pérdida real; con menos, el papel con aviso
+        if pr and pr[1] >= MIN_CASOS_REAL and pr[0] > 0:
+            real = riesgo * max(pr[0], 1.0)
+            cabe = real <= tope
+            out["tope"] = (f"{'✅' if cabe else '❌'} pérdida real media ~{real:.0f} € (manda la real: {pr[1]} casos; {riesgo:.0f} € sobre papel; tope {tope:.0f} €)"
+                           + ("" if cabe or not imp else f" → comprar menos: ~{imp * tope / real:.0f} € en vez de {imp:.0f} €"))
+        else:
+            cabe = riesgo <= tope
+            aviso = f" · pérdida real media ~{riesgo * max(pr[0], 1.0):.0f} € ⚠️ solo {pr[1]} casos: manda el papel" if pr else ""
+            out["tope"] = (f"{'✅' if cabe else '❌'} {riesgo:.0f} € sobre papel{aviso} (tope {tope:.0f} €)"
+                           + ("" if cabe or not imp else f" → comprar menos: ~{imp * tope / riesgo:.0f} € en vez de {imp:.0f} €"))
+        entra = entra and rt >= RATIO_MIN and cabe
     out["entra"] = entra and t_ok
     if pos:
         out["dentro"] = examen_dentro(p, w, pos, st)
