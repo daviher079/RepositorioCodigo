@@ -502,6 +502,10 @@ def main():
         L.append(f"- {'⛔' if activo else '·'} {nombre}: {dato}")
     L.append(f"- {'⛔' if vix3 else '·'} VIX 3 semanas por encima de 20: últimas {vix_ult}\n")
     L.append(dinero_nuevo(vie, spy) + "\n")
+    if sab.month == 1:
+        L.append("🪙 **Es enero: toca el Krugerrand** (Playbook, sección 2; David, 05/11). Con el resultado del año pasado ya cobrado, "
+                 "decide qué parte de los **beneficios** pasa a oro físico (mejor ¼ oz). Nunca con liquidez que espera una entrada. "
+                 "Primas y recompra, en la tienda.\n")
 
     # A. Cartera
     L.append("## A. Cartera\n")
