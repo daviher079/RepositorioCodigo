@@ -1,6 +1,6 @@
 ---
 name: analisis-situacion-semanal
-description: Informe semanal de trading de David. Calcula las 8 filas de Datos macro semanales (Fed, MOVE, HYG, Russell, SPY, SPY/GLD, VIX, KOSPI) con el cierre de la semana y escribe el Word con ficha, veredicto, recorrido, qué ha cambiado y resumen con frases fijas por tramo. No escribe conclusiones. Activar con /analisis-situacion-semanal [AAAA-MM-DD del sábado].
+description: Informe semanal de trading de David. Calcula las 8 filas de Datos macro semanales (Fed, MOVE, HYG, Russell, SPY, SPY/GLD, VIX, KOSPI) con el cierre de la semana y escribe el Word con ficha, veredicto, recorrido, qué ha cambiado y resumen con frases fijas por tramo. Claude escribe después las conclusiones (como especulador con 30 años de bolsa) y David las revisa. Activar con /analisis-situacion-semanal [AAAA-MM-DD del sábado].
 ---
 
 # Skill: /analisis-situacion-semanal
@@ -10,8 +10,9 @@ Primer paso del sábado. Todo lo que hace sale de la **Especificación — Anál
 `1npxghc2JILV_VT534GFiZtEbDYzFNx9wI5kKOAHnzOs` ya no es la viva). Si la especificación y el script no
 coinciden, manda la especificación: se corrige el script, no la lectura.
 
-**El informe NO escribe conclusiones ni une filas.** Eso lo hace David después de leerlo. Tampoco
-interpretes tú los números en el chat: enseña lo que dice el informe y para.
+**El script NO escribe conclusiones ni une filas: las escribe Claude en el paso 7** (decidido por David
+el 07/11/2026; hasta entonces las escribía él) y David las revisa. Mientras no se haya llegado al paso 7,
+no interpretes los números en el chat: enseña lo que dice el informe y para.
 
 ## Pasos
 
@@ -31,7 +32,7 @@ interpretes tú los números en el chat: enseña lo que dice el informe y para.
 4. **Enseñar a David**, sin opinar:
    - el veredicto de cada fila y la línea de "qué ha cambiado";
    - los **dos números para comprobar en TradingView** (cierre y EMA del SPY, distancia del HYG);
-   - la ruta del Word, y abrirlo con `open`.
+   - la ruta del Word (todavía **sin abrir**: se abre al final, en el paso 8).
 
 5. **Si un número no coincide con TradingView**, no se da el informe por bueno: se busca la causa en el
    script (fuente, semana, EMA) antes de seguir.
@@ -45,6 +46,38 @@ interpretes tú los números en el chat: enseña lo que dice el informe y para.
    `updated` (`at` + `by`), usando el `if_version` leído. Luego borrar el asset anterior.
    **Con `--sin-docx` no se generan esos archivos.** Relanzar el script reescribe el Word: si David ya ha
    escrito sus conclusiones, no relanzarlo sin preguntarle.
+
+7. **Escribir las conclusiones** (Claude, desde el 07/11/2026). Rol: **especulador con 30 años de bolsa**
+   que lee el informe para David. Cuatro apartados: lado de la Fed (Fed + MOVE + HYG), el Russell entre
+   los dos lados, lado de la bolsa (SPY + VIX + SPY/GLD + KOSPI) y conclusión final.
+   - **Antes de escribir**, leer el semáforo de la especulación (sección 2) de
+     `02_Wiki/projects/trading/trading-playbook.md` y la conclusión del sábado anterior (su Word).
+   - **Unir filas** es el trabajo: qué causa qué, qué confirma a qué y qué se contradice. Si dos filas
+     dicen cosas opuestas, se dice.
+   - **Cada afirmación con su número del informe.** Ningún dato que no esté en el informe; lo que sea
+     criterio propio va marcado como tal ("mi lectura", "en mi experiencia") — regla transversal 1.
+   - **Los modales, honestos:** probabilidades, no certezas. Los porcentajes históricos del informe se
+     citan como historia, no como predicción.
+   - **Conclusión final:** el estado del **semáforo** (verde, amarillo o rojo, con el bloqueo que lo
+     activa, o "no lo dice el informe" si falta un dato, como el mínimo de 52 semanas del HYG/IEI), qué
+     cambió frente al sábado anterior y **los dos o tres niveles que vigilar la semana que viene**
+     (sacados de "Para cambiar de tramo"). Prosa simple, como escribe David; nada de compras ni ventas
+     concretas: eso es de `/estado-cartera`.
+   - Se escribe en un JSON (las cuatro claves con el título exacto de cada apartado, cada una con una
+     lista de párrafos) y se vuelca con:
+     ```bash
+     osascript -e 'tell application "Microsoft Word" to quit saving no'   # si Word está abierto
+     "/Users/davidvh10/Desktop/Mis Cosas/RepositorioCodigo/venv/bin/python" ~/.claude/skills/analisis-situacion-semanal/scripts/conclusiones.py "<ruta del .docx>" "<ruta del .json>"
+     ```
+     El script guarda una copia `.bak` y para si algún apartado ya tiene texto.
+
+8. **Abrir las dos cosas, sin que David lo pida** (lo pidió así el 07/11/2026). Cuando los números
+   cuadren con TradingView, el dashboard esté actualizado y las conclusiones escritas, abrir el Word y el dashboard a la vez:
+   ```bash
+   open "<ruta del .docx que imprime el script>"
+   open "https://claude.ai/artifact/XRnA8ugw3pKRFi8LZ9D1Ea"
+   ```
+   Si un número no cuadra (paso 5), no se abre nada hasta resolverlo.
 
 ## Qué calcula (resumen; el detalle está en la especificación)
 

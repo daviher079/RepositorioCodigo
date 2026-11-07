@@ -5,7 +5,7 @@ Calcula las 8 filas de *Datos macro semanales* con el cierre de la semana
 Todo sale de la especificación «Especificación — Análisis semanal
 automatizado» (Google Drive): mismos datos, mismos tramos, mismas frases.
 
-El informe NO escribe conclusiones ni une filas: eso lo hace David.
+El script NO escribe conclusiones ni une filas: las escribe Claude después (scripts/conclusiones.py) y las revisa David.
 Donde la especificación no tiene un corte medido, solo se da el número.
 
 Uso:
@@ -872,7 +872,7 @@ def escribir_docx(filas, sabado, lunes, ruta, aviso_semana):
             parrafo("Semanas malas: ", f["malas"])
             parrafo("Para cambiar de tramo: ", f["panel"]["cambio"])
             parrafo("Resumen: ", f["resumen"])
-    titulo("Conclusiones (las escribe David)", 1)
+    titulo("Conclusiones (las escribe Claude; las revisa David)", 1)
     for n in ["Conclusión del lado de la Fed (FED + MOVE + HYG)", "El Russell, entre los dos lados",
               "Conclusión del lado de la bolsa (SPY + VIX + SPY/GLD + KOSPI)", "Conclusión final"]:
         titulo(n, 2)
