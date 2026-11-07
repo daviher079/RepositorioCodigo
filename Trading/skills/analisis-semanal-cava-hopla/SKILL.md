@@ -96,6 +96,7 @@ análisis acaba siendo el de Cava y el contraste deja de servir.
         equivalente americano, y en "¿Mismo índice?" se dice si coincide.
       - **Acciones sueltas** → a "Acciones sueltas" en Descartados, con la fecha.
       - Si no nombra ningún ETF ni nivel aprovechable, se dice y no se toca el documento.
+      - **Y los demás vídeos de la semana** (07/11/2026, David: *"¿has comprobado si hay algún ETF nuevo?"*): al cerrar este paso, decir qué ETF nombran los otros vídeos (Cava y HOPLA) y si tienen ficha (`grep` en las Fichas y en el Plan). No se escriben solos: se proponen. Un ETF del mismo sector que otro del gráfico (SOXX frente a SMH) no es nuevo, pero sus niveles van marcados como de ese ETF. El 07/11 salieron TLT (sin ficha) y SOXX.
 
    d. **Enseñar el borrador a David ANTES de escribir.** Cada cambio con el texto exacto que irá al
       documento y, al lado, la cita literal con su `[mm:ss]` para que pueda comprobarla. Mismas reglas
