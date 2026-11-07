@@ -34,8 +34,20 @@ David. La conclusión de David puede ser más prudente que lo que diga la regla,
    ```
    Tarda unos minutos (descarga ~25 series de Yahoo y DBnomics con curl).
 
-2. **Leer el informe entero** y abrirlo en Obsidian:
-   `open "obsidian://open?vault=david_brain&file=02_Wiki%2Fprojects%2Ftrading%2Fsabados%2Festado-AAAA-MM-DD&paneType=tab"`
+2. **Leer el informe entero.**
+
+   **Actualizar el dashboard** (vista de la semana, pedida por David el 07/11; el informe sigue siendo el detalle):
+   https://claude.ai/artifact/GawoWnGADBEb2gC8pqmjuq — tipo Dashboard. El script deja en
+   `~/.claude/skills/estado-cartera/dashboard/` cinco JSON: `cabecera`, `semaforo`, `cartera`, `banquillo` y
+   `ajustes`. Para cada uno: `Artifact` con `asset: true`, `url` y `file_path`; después **un solo**
+   `ArtifactData` `batch` con un `update` por `datasets/<nombre>` (`source.url` nueva, `updated` con `at` + `by`,
+   `edit: {via: "claude", at}`), usando el `version` leído como `if_version`. Luego borrar los assets anteriores.
+
+   **Abrir las dos cosas a la vez, sin que David lo pida** (como en `/analisis-situacion-semanal`):
+   ```bash
+   open "obsidian://open?vault=david_brain&file=02_Wiki%2Fprojects%2Ftrading%2Fsabados%2Festado-AAAA-MM-DD&paneType=tab"
+   open "https://claude.ai/artifact/GawoWnGADBEb2gC8pqmjuq"
+   ```
 
 3. **Decir a David, en pocas líneas:**
    - El color del semáforo y qué lo enciende.
@@ -47,6 +59,7 @@ David. La conclusión de David puede ser más prudente que lo que diga la regla,
 4. **Con el visto bueno de David**, y solo entonces:
    - Si compra o vende: proponer la línea de `trading-posiciones.md` y escribirla cuando la confirme.
    - **Si vende por el stop** (añadido 2, 05/11): en "Parámetros del examen" del Plan, su **Zona y Stop pasan a «—»**. Así el sábado siguiente sale como *"sin medir"* y no vuelve a dar gatillo en la zona que falló. Solo vuelve a la cartera con una zona nueva medida con `--nuevo`. Si vende por la EMA 50, la zona se conserva (vale el Gatillo de Recompra).
+   - **Zona fallida sin comprar** (David, 07/11): si el bloque C lo dice (cierre bajo el stop sin estar dentro), lo mismo: **Zona y Stop a «—»** y también la "Pérdida real", que estaba medida con esa zona. Solo vuelve con `--nuevo`.
    - **Al cerrar una posición**, el "Motivo de salida" en "Cerradas" se escribe **literal**: `Stop`, `EMA 50` o `Semáforo rojo`. El script busca "EMA" en ese texto para saber si vigila el Gatillo de Recompra; con otro texto no lo vigilaría.
    - Anotar el valor de la especulación de ese sábado en `trading-posiciones.md` (para el freno del 10%).
    - Si un candidato sube o baja: cambiar la fila en "Parámetros del examen" y en el banquillo del Plan.
@@ -58,7 +71,7 @@ David. La conclusión de David puede ser más prudente que lo que diga la regla,
 "/Users/davidvh10/Desktop/Mis Cosas/RepositorioCodigo/venv/bin/python" estado.py --medir CIBR    # o --medir todos
 ```
 
-Con la zona y el stop del Plan, simula cada retroceso de su historia (entra con un cierre en la zona, sale con el primer cierre semanal bajo el stop) y da la **pérdida real media en R** y cuántas veces saltó. Ese `2.1 (5)` se escribe, con visto bueno de David, en la columna **"Pérdida real"** de "Parámetros del examen". Se corre al poner zona y stop a un ETF y al cambiarlos, no cada sábado. El sábado, el ratio que manda (filtro 1:2, home run, prioridad) es el **real** = papel ÷ pérdida real; con menos de 5 stops saltados, el de papel con ⚠️.
+Con la zona y el stop del Plan, simula cada retroceso de su historia (entra con un cierre en la zona, sale con el primer cierre semanal bajo el stop) y da la **pérdida real media en R** y cuántas veces saltó. Ese `2.1 (5)` se escribe, con visto bueno de David, en la columna **"Pérdida real"** de "Parámetros del examen", y el `g/n` (ganadoras / entradas) en la columna **"Acierto"** (07/11). Con los dos, el sábado calcula la **esperanza** = acierto × ratio sobre papel − (1 − acierto) × pérdida real: si es negativa no entra aunque pase el 1:2; con menos de 5 entradas solo avisa (Playbook, sección 4). Se corre al poner zona y stop a un ETF y al cambiarlos, no cada sábado. El sábado, el ratio que manda (filtro 1:2, home run, prioridad) es el **real** = papel ÷ pérdida real; con menos de 5 stops saltados, el de papel con ⚠️.
 
 ## Esperando suelo (05/11)
 

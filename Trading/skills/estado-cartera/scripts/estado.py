@@ -35,6 +35,7 @@ VAULT = Path.home() / "Library/Mobile Documents/com~apple~CloudDocs/Downloads/Ob
 TRADING = VAULT / "02_Wiki/projects/trading"
 FILTRO = Path.home() / "Desktop/Mis Cosas/RepositorioCodigo/Trading/filtro/filtro_candidatos.py"
 VENV_PY = Path.home() / "Desktop/Mis Cosas/RepositorioCodigo/venv/bin/python"
+DASHBOARD = Path(__file__).resolve().parent.parent / "dashboard"   # JSON para el dashboard del estado de la cartera (07/11)
 
 CARTERA_TOTAL = 10_000          # valor de partida de la simulación (se suma lo realizado si hay posiciones cerradas)
 TOPE_RIESGO = 0.01              # Playbook, sección 6
@@ -45,6 +46,7 @@ LAT_PEND, LAT_SEMANAS = 2.0, 4  # lateral, 04/11
 FIN_LAT_VOL = 1.25              # fin del lateral, 04/11
 RATIO_MIN = 2.0                 # 1:2 hasta 20 operaciones
 HOME_RUN = 4.0                  # 1:4 o más = home run (añadido 5, David, 05/11)
+MIN_CASOS_ACIERTO = 5           # con menos de 5 entradas en su historia, la esperanza avisa pero no filtra (criterio de Claude, 07/11)
 MIN_CASOS_REAL = 5              # con menos de 5 stops saltados en su historia, manda el ratio sobre papel (criterio de Claude, 05/11)
 
 
@@ -347,13 +349,16 @@ def examen_etf(p, w, spy, cartera_w, pos, total):
     out = {}
     c = w.Close.iloc[-1]
     f12, sem = filtro_12(w, spy)
+    out["f12_ok"], out["n_sem"] = bool(f12), int(sem)
     out["filtro"] = (f"{'✅' if f12 else '❌'} tendencia y fuerza frente al SPY · {sem} semanas seguidas"
                      + (" → **aviso (5 semanas)**" if sem >= SEMANAS_AVISO else ""))
     if p["Lugar"] == "banquillo" and cartera_w:
         nom, cr = correlacion(w, cartera_w)
         out["correlacion"] = f"máxima {cr:.2f} con {nom}" + (" ⚠️ repite lo que ya hay (> 0,8)" if cr > CORR_MAX else "")
         out["repite"] = cr > CORR_MAX
+        out["cr"], out["cr_con"] = round(float(cr), 2), nom
     t_ok, dist = tendencia(w)
+    out["t_ok"], out["dist"] = bool(t_ok), round(float(dist), 1)
     out["tendencia"] = f"{'✅' if t_ok else '❌'} {dist:+.1f}% de su EMA 50" + ("" if t_ok else " (sin tendencia: no hay entrada)")
     lat, pend, b26, med = lateral(w)
     out["lateral"] = (f"{'⛔ EN LATERAL' if lat else 'no'} (EMA {pend:+.1f}% en 13 sem; banda 26 sem {b26}% frente a su mediana {med}%)")
@@ -362,6 +367,7 @@ def examen_etf(p, w, spy, cartera_w, pos, total):
         out["lateral"] += f" · {fl}"
     k, ktxt = estocastico(w)
     out["estocastico"] = f"{k}: {ktxt}"
+    out["lat_ok"], out["k"] = bool(lat), k
     z = zona(p["Zona"]) if p["Zona"] not in ("—", "") else None
     st = stop_param(p["Stop"]) if p["Stop"] not in ("—", "") else None
     estado = "sin medir (falta zona y stop: pasar por `--nuevo`)"
@@ -377,6 +383,14 @@ def examen_etf(p, w, spy, cartera_w, pos, total):
             hay, gdat = gatillo(w)
             estado = ("**posible gatillo: confírmalo en el gráfico**" if hay else "en zona, sin gatillo") + f" ({c:.2f}; {gdat})"
             entra = hay
+    # Zona fallida sin comprar (Playbook, sección 5; David, 07/11): cierre semanal bajo el stop sin estar dentro.
+    # Con stop en %, el nivel se calcula desde el borde bajo de la zona (la entrada más baja posible): criterio de Claude, 07/11.
+    if z and st and not pos:
+        nivel_stop = st[1] if st[0] == "nivel" else z[0] * (1 - st[1])
+        if c < nivel_stop:
+            estado = f"⛔ **zona fallida sin comprar**: cierra {c:.2f} bajo su stop {nivel_stop:.2f}"
+            out["zona_fallida"] = True
+            entra = False
     if lat:
         estado = "en lateral: no se hace nada" + (f" · {estado}" if z else "")
         entra = False
@@ -390,8 +404,14 @@ def examen_etf(p, w, spy, cartera_w, pos, total):
         stop = st[1] if st[0] == "nivel" else entrada * (1 - st[1])
         rt_papel, mx = ratio(w, entrada, stop)
         rt, rtxt = ratio_real(rt_papel, p)
-        out["rt"] = rt
-        out["ratio"] = f"{'✅' if rt >= RATIO_MIN else '❌'} {rtxt} (entrada {entrada:.2f}, stop {stop:.2f}, máximo {mx:.2f})"
+        esp, esp_filtra, esp_txt = esperanza(rt_papel, p)
+        esp_ok = esp is None or not esp_filtra or esp > 0
+        out["rt"], out["rt_papel"], out["esp"], out["esp_ok"] = rt, rt_papel, esp, esp_ok
+        ac = acierto_plan(p)
+        out["acierto"] = f"{ac[0]}/{ac[1]}" if ac else ""
+        out["entrada"], out["stop"], out["maximo"] = entrada, stop, mx
+        out["ratio"] = (f"{'✅' if rt >= RATIO_MIN and esp_ok else '❌'} {rtxt} · {esp_txt}"
+                        f" (entrada {entrada:.2f}, stop {stop:.2f}, máximo {mx:.2f})")
         imp = float(p["Importe"]) if p["Importe"] not in ("—", "") else 0
         riesgo = imp * (entrada - stop) / entrada if st[0] == "nivel" else imp * st[1]
         out["riesgo"] = riesgo
@@ -408,7 +428,7 @@ def examen_etf(p, w, spy, cartera_w, pos, total):
             aviso = f" · pérdida real media ~{riesgo * max(pr[0], 1.0):.0f} € ⚠️ solo {pr[1]} casos: manda el papel" if pr else ""
             out["tope"] = (f"{'✅' if cabe else '❌'} {riesgo:.0f} € sobre papel{aviso} (tope {tope:.0f} €)"
                            + ("" if cabe or not imp else f" → comprar menos: ~{imp * tope / riesgo:.0f} € en vez de {imp:.0f} €"))
-        entra = entra and rt >= RATIO_MIN and cabe
+        entra = entra and rt >= RATIO_MIN and esp_ok and cabe and not out.get("zona_fallida")
     out["entra"] = entra and t_ok
     if pos:
         out["dentro"] = examen_dentro(p, w, pos, st)
@@ -523,6 +543,44 @@ def bloque_nucleo(p, w, viernes, sem_color, spy, vix):
     return "—"
 
 
+def limpio(t):
+    """Texto del informe sin marcas de Markdown, para el dashboard."""
+    return re.sub(r"\*\*|`", "", str(t)).strip()
+
+
+def clase_estado(t):
+    """Una etiqueta corta por estado, para los chips del dashboard (criterio de Claude, 07/11)."""
+    t = t.lower()
+    for clave, etq in (("zona fallida", "zona fallida"), ("posible gatillo", "posible gatillo"), ("se cumple", "recompra"),
+                       ("en lateral", "en lateral"), ("posible suelo", "posible suelo"), ("esperando suelo", "esperando suelo"),
+                       ("en zona", "en zona"), ("acercándose", "acercándose"), ("por debajo de la zona", "bajo la zona"),
+                       ("fuera de zona", "fuera de zona"), ("sin medir", "sin medir"), ("espera", "espera")):
+        if clave in t:
+            return etq
+    return "otro"
+
+
+def guardar_dashboard(sab, vie, color, bloqueos, vix3, vix_ult, dinero, riesgo_abierto, total, cartera, banquillo, ajustes):
+    DASHBOARD.mkdir(exist_ok=True)
+    activos = [n for n, a, _ in bloqueos if a] + (["VIX 3 semanas por encima de 20"] if vix3 else [])
+    datos = {
+        "cabecera": [{"sabado": f"{sab:%Y-%m-%d}", "viernes": f"{vie:%d/%m/%Y}",
+                      "semaforo": color.split()[-1].capitalize(), "motivo": " · ".join(activos) or "ningún bloqueo activo",
+                      "riesgo_abierto": round(riesgo_abierto), "riesgo_max": round(RIESGO_ABIERTO_MAX * total),
+                      "dinero_nuevo": limpio(dinero), "n_cartera": len(cartera), "n_banquillo": len(banquillo),
+                      "n_ajustes": len(ajustes)}],
+        "semaforo": [{"bloqueo": n, "activo": "sí" if a else "no", "dato": d} for n, a, d in bloqueos]
+                    + [{"bloqueo": "VIX 3 semanas por encima de 20", "activo": "sí" if vix3 else "no",
+                        "dato": "últimas " + ", ".join(f"{x:.2f}".replace(".", ",") for x in vix_ult)}],
+        "cartera": cartera,
+        "banquillo": banquillo,
+        "ajustes": [{"n": i + 1, "ajuste": limpio(x)} for i, x in enumerate(ajustes)] or [{"n": 1, "ajuste": "Ninguno esta semana."}],
+    }
+    for nombre, filas in datos.items():
+        (DASHBOARD / f"{nombre}.json").write_text(json.dumps(filas, ensure_ascii=False, indent=1))
+    print(f"Datos del dashboard guardados en: {DASHBOARD}")
+
+
 def sabado_por_defecto(hoy):
     return hoy - dt.timedelta(days=(hoy.weekday() - 5) % 7)
 
@@ -574,18 +632,26 @@ def main():
     L.append("## A. Cartera\n")
     riesgo_abierto = 0
     entran = []   # (nombre, ratio) de lo que puede entrar esta semana, para la prioridad (añadido 5)
+    fallidas = []  # zonas fallidas sin comprar (07/11): van al bloque C
+    d_cartera, d_banquillo = [], []   # filas del dashboard (07/11)
     for p in [x for x in params if x["Lugar"] == "cartera"]:
         w = semanal(p["Gráfico"], vie) if p["Tipo"] != "nucleo-btc" else None
         pos = abiertas.get(p["Nombre"])
         L.append(f"### {p['Nombre']} ({p['Gráfico']} → {p['Réplica']}){' — DENTRO' if pos else ''}\n")
         if p["Tipo"].startswith("nucleo"):
-            L.append(f"- {bloque_nucleo(p, w, vie, color, spy, vix)}")
+            bn = bloque_nucleo(p, w, vie, color, spy, vix)
+            d_cartera.append({"nombre": p["Nombre"], "grafico": p["Gráfico"], "replica": p["Réplica"], "parte": "núcleo",
+                              "dentro": "sí" if pos else "no", "estado": limpio(bn), "clase": clase_estado(bn),
+                              "tendencia": "", "dist": None, "estocastico": "", "ratio": "", "tope": "", "decision": ""})
+            L.append(f"- {bn}")
             if pos and w is not None:
                 for x in examen_dentro(p, w, pos, stop_param(p["Stop"])):
                     L.append(f"- {x}")
             L.append("")
             continue
         r = examen_etf(p, w, spy, {}, pos, total)
+        if r.get("zona_fallida"):
+            fallidas.append(p)
         riesgo_abierto += r.get("riesgo", 0) if pos else 0
         decision = ("**se compra el lunes** (si confirmas el gatillo)" if r["entra"] and color == "🟢 VERDE"
                     else "no se compra esta semana")
@@ -606,6 +672,14 @@ def main():
                 L.append(f"- {x}")
         else:
             L.append(f"- **→ {decision}**" + ("" if color == "🟢 VERDE" or not r["entra"] else f" (semáforo {color}: no se abre nada nuevo)"))
+        d_cartera.append({"nombre": p["Nombre"], "grafico": p["Gráfico"], "replica": p["Réplica"], "parte": "especulación",
+                          "dentro": "sí" if pos else "no", "estado": limpio(r["estado"]), "clase": clase_estado(r["estado"]),
+                          "tendencia": limpio(r["tendencia"]), "dist": r["dist"], "estocastico": limpio(r["estocastico"]),
+                          "ratio": limpio(r.get("ratio", "—")), "tope": limpio(r.get("tope", "—")),
+                          "rt": round(float(r["rt"]), 2) if r.get("rt") is not None else None,
+                          "rt_papel": round(float(r["rt_papel"]), 2) if r.get("rt_papel") is not None else None,
+                          "acierto": r.get("acierto", ""), "esp": round(float(r["esp"]), 2) if r.get("esp") is not None else None,
+                          "decision": "dentro: ver su stop" if pos else limpio(decision)})
         L.append("")
     L.append(f"**Riesgo abierto (posiciones compradas):** {riesgo_abierto:.0f} € de {RIESGO_ABIERTO_MAX * total:.0f} € · "
              "**Freno del 10%:** sin serie todavía (el valor de la especulación se anota cada sábado en Posiciones)\n")
@@ -628,7 +702,20 @@ def main():
             if gr[1]:
                 entran.append((p["Nombre"], gr[1]))
                 ajustes.append(f"**{p['Nombre']}**: {gr[0]} → **se compra el lunes** (vuelve a la cartera con su zona y su stop del Plan; recalcular la paridad)")
+        d_banquillo.append({"nombre": p["Nombre"], "grafico": p["Gráfico"], "tipo": p["Tipo"],
+                            "filtro": "sí" if r["f12_ok"] else "no", "semanas": r["n_sem"],
+                            "aviso": "sí" if "aviso (5 semanas)" in r["filtro"] else "no",
+                            "corr": r.get("cr"), "corr_con": r.get("cr_con", ""), "repite": "sí" if r.get("repite") else "no",
+                            "tendencia": "sí" if r["t_ok"] else "no", "dist": r["dist"], "lateral": "sí" if r["lat_ok"] else "no",
+                            "estado": limpio(r["estado"]), "clase": clase_estado(r["estado"]),
+                            "ratio": limpio(r.get("ratio", "—")), "rt": round(float(r["rt"]), 2) if r.get("rt") is not None else None,
+                            "rt_papel": round(float(r["rt_papel"]), 2) if r.get("rt_papel") is not None else None,
+                            "acierto": r.get("acierto", ""), "esp": round(float(r["esp"]), 2) if r.get("esp") is not None else None,
+                            "esp_ok": "sí" if r.get("esp_ok", True) else "no",
+                            "acierto_pct": round(acierto_plan(p)[0] / acierto_plan(p)[1], 2) if acierto_plan(p) else None})
         L.append(f"| {p['Nombre']} ({p['Gráfico']}) | {r['filtro']} | {r.get('correlacion', '')} | {r['tendencia']} | {r['lateral']} | {r['estado']} | {r.get('ratio', '—')} |")
+        if r.get("zona_fallida"):
+            fallidas.append(p)
         if p["Tipo"] == "empresa":
             empresas.append(p["Gráfico"])
         aviso = "aviso (5 semanas)" in r["filtro"]
@@ -645,6 +732,9 @@ def main():
 
     # C. Ajustes
     L.append("## C. Ajustes\n")
+    for p in fallidas:
+        ajustes.insert(0, f"**{p['Nombre']}**: zona fallida sin comprar (cierre bajo su stop) → en \"Parámetros del examen\", "
+                          f"**Zona y Stop a «—»**; solo vuelve con una zona nueva medida con `--nuevo {p['Gráfico']}` (Playbook, sección 5)")
     if len(dict(entran)) >= 2:
         orden = sorted(dict(entran).items(), key=lambda x: -x[1])   # un nombre solo una vez
         ajustes.append("**Prioridad** (Playbook, sección 4: si compiten por el mismo dinero o por el riesgo abierto del 4%, "
@@ -656,6 +746,8 @@ def main():
     destino.parent.mkdir(exist_ok=True)
     destino.write_text("\n".join(L) + "\n")
     print(destino)
+    guardar_dashboard(sab, vie, color, bloqueos, vix3, vix_ult, dinero_nuevo(vie, spy), riesgo_abierto, total,
+                      d_cartera, d_banquillo, ajustes)
 
 
 def picos_retroceso(w):
@@ -728,6 +820,29 @@ def perdida_plan(p):
     return (float(m.group(1).replace(",", ".")), int(m.group(2))) if m else None
 
 
+def acierto_plan(p):
+    """Columna 'Acierto' del Plan (07/11): '1/5' -> (1, 5) = ganadoras / entradas en su historia; sin medir -> None."""
+    m = re.match(r"(\d+)\s*/\s*(\d+)", p.get("Acierto", "") or "")
+    return (int(m.group(1)), int(m.group(2))) if m and int(m.group(2)) > 0 else None
+
+
+def esperanza(rt_papel, p):
+    """Frecuencia de acierto en el filtro (David, 07/11; Playbook, sección 4):
+    esperanza = acierto × ratio sobre papel − (1 − acierto) × pérdida real, en R por operación.
+    Devuelve (esperanza o None, filtra: bool, texto)."""
+    ac = acierto_plan(p)
+    if not ac:
+        return None, False, "acierto sin medir: `--medir`"
+    g, n = ac
+    pr = perdida_plan(p)
+    perdida = max(pr[0], 1.0) if pr else 1.0
+    q = g / n
+    e = q * rt_papel - (1 - q) * perdida
+    filtra = n >= MIN_CASOS_ACIERTO
+    txt = f"acierto {g}/{n} ({q:.0%}) · esperanza {e:+.2f}R" + ("" if filtra else f" ⚠️ menos de {MIN_CASOS_ACIERTO} entradas: no filtra")
+    return e, filtra, txt
+
+
 def ratio_real(rt, p):
     """Manda el ratio real (David, 05/11): el de papel dividido por la pérdida real media.
     Sin medir o con menos de MIN_CASOS_REAL entradas, manda el de papel con aviso."""
@@ -751,6 +866,9 @@ def medir(nombre, vie):
         n, g, media, peor, det = medir_perdida(w, zona(p["Zona"]), stop_param(p["Stop"]))
         print(f"## {p['Nombre']} ({p['Gráfico']}): zona {p['Zona']}, stop {p['Stop']}\n")
         print(f"- Entradas en su historia: {n} · ganadoras {g} · saltó el stop {n - g}")
+        if n:
+            print(f"- Para el Plan, columna 'Acierto': `{g}/{n}` ({g / n:.0%})"
+                  + ("" if n >= MIN_CASOS_ACIERTO else f" ⚠️ menos de {MIN_CASOS_ACIERTO} entradas: la esperanza avisará pero no filtrará"))
         for d in det:
             print(f"  - {d}")
         if media is not None:
